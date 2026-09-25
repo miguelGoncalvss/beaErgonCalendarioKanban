@@ -182,15 +182,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             {priority.label}
           </span>
 
-          {task.isMonthlyRecurring && (
+          {task.recurringGroupId?.startsWith('recur-week-') || task.recurrence === 'weekly' ? (
+            <span
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 flex items-center gap-1"
+              title="Tarefa recorrente semanal (12 semanas)"
+            >
+              <Repeat className="w-2.5 h-2.5 text-purple-600" />
+              Semanal
+            </span>
+          ) : (task.isMonthlyRecurring || task.recurrence === 'monthly' || task.recurringGroupId) ? (
             <span
               className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1"
-              title="Tarefa recorrente mensal"
+              title="Tarefa recorrente mensal (12 meses)"
             >
               <Repeat className="w-2.5 h-2.5 text-amber-600" />
               Mensal
             </span>
-          )}
+          ) : null}
         </div>
 
         <div className="relative flex items-center">

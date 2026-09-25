@@ -17,7 +17,7 @@ import {
   Bell,
   LayoutGrid
 } from 'lucide-react';
-import type { DayNote, NoteCategory, Task } from '../../types';
+import type { DayNote, NoteCategory, Task, RecurrenceType } from '../../types';
 import { formatFriendlyDate } from '../../utils/dateUtils';
 import { ColorPicker } from '../Common/ColorPicker';
 
@@ -102,11 +102,12 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
   const [newColor, setNewColor] = useState<string | undefined>(undefined);
   const [isCreatingCompany, setIsCreatingCompany] = useState(false);
   const [customCompanyName, setCustomCompanyName] = useState('');
-  const [repeatMonthly, setRepeatMonthly] = useState(false);
+  const [recurrence, setRecurrence] = useState<RecurrenceType>('none');
   const [sendToKanban, setSendToKanban] = useState(true);
   const [showAddForm, setShowAddForm] = useState(initialShowAddForm);
   const [editingNote, setEditingNote] = useState<DayNote | null>(null);
   const [editSendToKanban, setEditSendToKanban] = useState(false);
+  const [editRecurrence, setEditRecurrence] = useState<RecurrenceType>('none');
 
   React.useEffect(() => {
     if (isOpen) {
@@ -114,6 +115,7 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
       setEditingNote(null);
       setNewColor(undefined);
       setSendToKanban(newCategory !== 'lembrete');
+      setRecurrence('none');
     }
   }, [isOpen, initialShowAddForm]);
 
@@ -141,7 +143,8 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
       color: newColor || undefined,
       time: newTime || undefined,
       isCompleted: false,
-      isMonthlyRecurring: repeatMonthly,
+      recurrence,
+      isMonthlyRecurring: recurrence === 'monthly',
       sendToKanban,
     });
 
@@ -153,7 +156,7 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
     setNewColor(undefined);
     setIsCreatingCompany(false);
     setCustomCompanyName('');
-    setRepeatMonthly(false);
+    setRecurrence('none');
     setSendToKanban(true);
     setShowAddForm(false);
   };
@@ -161,6 +164,16 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
   const handleStartEdit = (note: DayNote) => {
     setEditingNote({ ...note });
     setEditSendToKanban(Boolean(note.taskId));
+
+    let initialRecurrence: RecurrenceType = 'none';
+    if (note.recurrence) {
+      initialRecurrence = note.recurrence;
+    } else if (note.recurringGroupId?.startsWith('recur-week-')) {
+      initialRecurrence = 'weekly';
+    } else if (note.isMonthlyRecurring || note.recurringGroupId) {
+      initialRecurrence = 'monthly';
+    }
+    setEditRecurrence(initialRecurrence);
     setShowAddForm(false);
   };
 
@@ -168,7 +181,12 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
     e.preventDefault();
     if (!editingNote || !editingNote.title.trim()) return;
 
-    onUpdateNote?.({ ...editingNote, sendToKanban: editSendToKanban });
+    onUpdateNote?.({
+      ...editingNote,
+      sendToKanban: editSendToKanban,
+      recurrence: editRecurrence,
+      isMonthlyRecurring: editRecurrence === 'monthly',
+    });
     setEditingNote(null);
   };
 
@@ -317,6 +335,19 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                       {editSendToKanban ? 'No Kanban' : 'Apenas Calendário'}
                     </span>
                   </label>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-md border border-slate-300">
+                  <Repeat className={`w-3.5 h-3.5 ${editRecurrence !== 'none' ? 'text-[#0d345e]' : 'text-slate-400'}`} />
+                  <select
+                    value={editRecurrence}
+                    onChange={(e) => setEditRecurrence(e.target.value as RecurrenceType)}
+                    className="text-xs bg-transparent border-0 focus:outline-hidden font-medium text-slate-700 cursor-pointer"
+                  >
+                    <option value="none">Não repetir</option>
+                    <option value="weekly">Semanal (12 semanas)</option>
+                    <option value="monthly">Mensal (12 meses)</option>
+                  </select>
                 </div>
 
                 <div className="ml-auto flex items-center gap-2">
@@ -537,18 +568,18 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                   />
                 </div>
 
-                {/* Repetir todos os meses Checkbox */}
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none bg-white px-2.5 py-1 rounded-md border border-slate-300 hover:border-[#0d345e]/60 transition">
-                    <input
-                      type="checkbox"
-                      checked={repeatMonthly}
-                      onChange={(e) => setRepeatMonthly(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded text-[#0d345e] focus:ring-[#0d345e] border-slate-300 cursor-pointer"
-                    />
-                    <Repeat className={`w-3.5 h-3.5 ${repeatMonthly ? 'text-[#0d345e]' : 'text-slate-400'}`} />
-                    <span>Repetir todo mês no dia {dayNumber}?</span>
-                  </label>
+                {/* Seletor de Recorrência */}
+                <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-md border border-slate-300">
+                  <Repeat className={`w-3.5 h-3.5 ${recurrence !== 'none' ? 'text-[#0d345e]' : 'text-slate-400'}`} />
+                  <select
+                    value={recurrence}
+                    onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
+                    className="text-xs bg-transparent border-0 focus:outline-hidden font-medium text-slate-700 cursor-pointer"
+                  >
+                    <option value="none">Não repetir</option>
+                    <option value="weekly">Repetir toda semana (12 semanas)</option>
+                    <option value="monthly">Repetir todo mês no dia {dayNumber} (12 meses)</option>
+                  </select>
                 </div>
 
                 {/* Enviar para o Kanban Checkbox */}
@@ -701,12 +732,17 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                             {statusInfo.label}
                           </span>
 
-                          {task.isMonthlyRecurring && (
+                          {task.recurringGroupId?.startsWith('recur-week-') || task.recurrence === 'weekly' ? (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 flex items-center gap-1">
+                              <Repeat className="w-2.5 h-2.5 text-purple-600" />
+                              Semanal
+                            </span>
+                          ) : (task.isMonthlyRecurring || task.recurrence === 'monthly' || task.recurringGroupId) ? (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
                               <Repeat className="w-2.5 h-2.5 text-amber-600" />
                               Mensal
                             </span>
-                          )}
+                          ) : null}
 
                           {(task.company || correspondingNote?.company) && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1" title="Empresa / Cliente">
@@ -811,6 +847,18 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                           <span className={`text-sm font-semibold ${isCompleted ? 'line-through text-slate-400' : 'text-slate-900'}`}>
                             {note.title}
                           </span>
+
+                          {note.recurringGroupId?.startsWith('recur-week-') || note.recurrence === 'weekly' ? (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 flex items-center gap-1">
+                              <Repeat className="w-2.5 h-2.5 text-purple-600" />
+                              Semanal
+                            </span>
+                          ) : (note.isMonthlyRecurring || note.recurrence === 'monthly' || note.recurringGroupId) ? (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                              <Repeat className="w-2.5 h-2.5 text-amber-600" />
+                              Mensal
+                            </span>
+                          ) : null}
 
                           {note.company && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">

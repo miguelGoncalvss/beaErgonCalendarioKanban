@@ -154,20 +154,29 @@ export function App() {
   // Task Actions
   const handleAddTask = async (taskData: Omit<Task, 'id' | 'createdAt'>) => {
     // Tratamento otimista local
-    if (taskData.isMonthlyRecurring) {
+    const isWeekly = taskData.recurrence === 'weekly' || taskData.recurringGroupId?.startsWith('recur-week-');
+    const isMonthly = taskData.recurrence === 'monthly' || (!isWeekly && (Boolean(taskData.isMonthlyRecurring) || Boolean(taskData.recurringGroupId)));
+    const isRecurring = isWeekly || isMonthly;
+
+    if (isRecurring) {
       const baseDueDate = taskData.dueDate || formatDateKey(new Date());
       const baseDate = parseDateKey(baseDueDate);
-      const targetDay = baseDate.getDate();
-      const recurringGroupId = `recur-${Date.now()}`;
+      const recurringGroupId = taskData.recurringGroupId || (isWeekly ? `recur-week-${Date.now()}` : `recur-month-${Date.now()}`);
       const newTasks: Task[] = [];
       const newNotes: DayNote[] = [];
 
       for (let i = 0; i < 12; i++) {
-        const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
-        const targetMonth = (baseDate.getMonth() + i) % 12;
-        const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
-        const validDay = Math.min(targetDay, maxDays);
-        const occurrenceDate = new Date(targetYear, targetMonth, validDay);
+        let occurrenceDate: Date;
+        if (isWeekly) {
+          occurrenceDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + (i * 7));
+        } else {
+          const targetDay = baseDate.getDate();
+          const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
+          const targetMonth = (baseDate.getMonth() + i) % 12;
+          const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+          const validDay = Math.min(targetDay, maxDays);
+          occurrenceDate = new Date(targetYear, targetMonth, validDay);
+        }
         const dateKeyStr = formatDateKey(occurrenceDate);
 
         const occurrenceTaskId = `task-${Date.now()}-${i}`;
@@ -185,7 +194,8 @@ export function App() {
           status: i === 0 ? taskData.status : 'todo',
           dueDate: dateKeyStr,
           checklist: checklistForOccurrence,
-          isMonthlyRecurring: true,
+          recurrence: isWeekly ? 'weekly' : 'monthly',
+          isMonthlyRecurring: !isWeekly,
           recurringGroupId,
           createdAt: new Date().toISOString(),
         });
@@ -198,7 +208,8 @@ export function App() {
           content: taskData.description,
           category: 'geral',
           company: taskData.company,
-          isMonthlyRecurring: true,
+          recurrence: isWeekly ? 'weekly' : 'monthly',
+          isMonthlyRecurring: !isWeekly,
           recurringGroupId,
           color: taskData.color,
           createdAt: new Date().toISOString(),
@@ -213,7 +224,13 @@ export function App() {
       setNotes((prev) => [...newNotes, ...prev]);
 
       try {
-        await api.createTask({ ...taskData, dueDate: baseDueDate });
+        await api.createTask({
+          ...taskData,
+          dueDate: baseDueDate,
+          recurrence: isWeekly ? 'weekly' : 'monthly',
+          isMonthlyRecurring: !isWeekly,
+          recurringGroupId,
+        });
         const [sqlTasks, sqlNotes] = await Promise.all([api.getTasks(), api.getNotes()]);
         setTasks(sqlTasks);
         setNotes(sqlNotes);
@@ -280,23 +297,39 @@ export function App() {
       };
     }
 
-    if (!existing?.isMonthlyRecurring && finalTask.isMonthlyRecurring) {
+    const existingWasRecurring = Boolean(
+      existing?.isMonthlyRecurring ||
+      existing?.recurrence === 'weekly' ||
+      existing?.recurrence === 'monthly' ||
+      existing?.recurringGroupId
+    );
+    const isNowWeekly = finalTask.recurrence === 'weekly' || finalTask.recurringGroupId?.startsWith('recur-week-');
+    const isNowMonthly = finalTask.recurrence === 'monthly' || (!isNowWeekly && Boolean(finalTask.isMonthlyRecurring));
+    const isNowRecurring = isNowWeekly || isNowMonthly;
+
+    if (!existingWasRecurring && isNowRecurring) {
       const baseDueDate = finalTask.dueDate || formatDateKey(new Date());
       const baseDate = parseDateKey(baseDueDate);
-      const targetDay = baseDate.getDate();
-      const recurringGroupId = finalTask.recurringGroupId || `recur-${Date.now()}`;
+      const recurringGroupId = finalTask.recurringGroupId || (isNowWeekly ? `recur-week-${Date.now()}` : `recur-month-${Date.now()}`);
       finalTask.recurringGroupId = recurringGroupId;
-      finalTask.isMonthlyRecurring = true;
+      finalTask.recurrence = isNowWeekly ? 'weekly' : 'monthly';
+      finalTask.isMonthlyRecurring = !isNowWeekly;
 
       const futureTasks: Task[] = [];
       const futureNotes: DayNote[] = [];
 
       for (let i = 1; i < 12; i++) {
-        const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
-        const targetMonth = (baseDate.getMonth() + i) % 12;
-        const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
-        const validDay = Math.min(targetDay, maxDays);
-        const occurrenceDate = new Date(targetYear, targetMonth, validDay);
+        let occurrenceDate: Date;
+        if (isNowWeekly) {
+          occurrenceDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + (i * 7));
+        } else {
+          const targetDay = baseDate.getDate();
+          const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
+          const targetMonth = (baseDate.getMonth() + i) % 12;
+          const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+          const validDay = Math.min(targetDay, maxDays);
+          occurrenceDate = new Date(targetYear, targetMonth, validDay);
+        }
         const dateKeyStr = formatDateKey(occurrenceDate);
 
         const occurrenceTaskId = `task-${Date.now()}-${i}`;
@@ -312,7 +345,8 @@ export function App() {
           ...finalTask,
           id: occurrenceTaskId,
           dueDate: dateKeyStr,
-          isMonthlyRecurring: true,
+          recurrence: isNowWeekly ? 'weekly' : 'monthly',
+          isMonthlyRecurring: !isNowWeekly,
           recurringGroupId,
           status: 'todo',
           checklist: checklistForOccurrence,
@@ -327,7 +361,8 @@ export function App() {
           content: finalTask.description,
           category: 'geral',
           company: finalTask.company,
-          isMonthlyRecurring: true,
+          recurrence: isNowWeekly ? 'weekly' : 'monthly',
+          isMonthlyRecurring: !isNowWeekly,
           recurringGroupId,
           color: finalTask.color,
           time: finalTask.dueTime,
@@ -346,7 +381,7 @@ export function App() {
       }
     }
 
-    if (existing?.isMonthlyRecurring && finalTask.recurringGroupId) {
+    if ((existingWasRecurring || finalTask.recurringGroupId) && finalTask.recurringGroupId) {
       const currentDueDate = finalTask.dueDate || '';
       const updatedFutureTasks: Task[] = [];
 
@@ -432,8 +467,11 @@ export function App() {
     let deleteFuture = false;
 
     if (taskToDelete?.recurringGroupId) {
+      const isWeekly = taskToDelete.recurringGroupId.startsWith('recur-week-') || taskToDelete.recurrence === 'weekly';
+      const periodLabel = isWeekly ? 'semanal' : 'mensal';
+      const singleLabel = isWeekly ? 'desta semana' : 'deste mês';
       deleteFuture = window.confirm(
-        'Esta é uma tarefa recorrente mensal.\n\nDeseja excluir todas as repetições futuras?\nClique em "OK" para excluir todas ou "Cancelar" para excluir apenas deste mês.'
+        `Esta é uma tarefa recorrente ${periodLabel}.\n\nDeseja excluir todas as repetições futuras?\nClique em "OK" para excluir todas ou "Cancelar" para excluir apenas ${singleLabel}.`
       );
       if (deleteFuture) {
         setTasks((prev) =>
@@ -555,19 +593,28 @@ export function App() {
 
     const shouldCreateTask = noteData.sendToKanban !== false;
 
-    if (noteData.isMonthlyRecurring) {
+    const isWeekly = noteData.recurrence === 'weekly' || noteData.recurringGroupId?.startsWith('recur-week-');
+    const isMonthly = noteData.recurrence === 'monthly' || (!isWeekly && (Boolean(noteData.isMonthlyRecurring) || Boolean(noteData.recurringGroupId)));
+    const isRecurring = isWeekly || isMonthly;
+
+    if (isRecurring) {
       const baseDate = parseDateKey(noteData.date);
-      const targetDay = baseDate.getDate();
-      const recurringGroupId = `recur-${Date.now()}`;
+      const recurringGroupId = noteData.recurringGroupId || (isWeekly ? `recur-week-${Date.now()}` : `recur-month-${Date.now()}`);
       const newNotes: DayNote[] = [];
       const newTasks: Task[] = [];
 
       for (let i = 0; i < 12; i++) {
-        const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
-        const targetMonth = (baseDate.getMonth() + i) % 12;
-        const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
-        const validDay = Math.min(targetDay, maxDays);
-        const occurrenceDate = new Date(targetYear, targetMonth, validDay);
+        let occurrenceDate: Date;
+        if (isWeekly) {
+          occurrenceDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + (i * 7));
+        } else {
+          const targetDay = baseDate.getDate();
+          const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
+          const targetMonth = (baseDate.getMonth() + i) % 12;
+          const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+          const validDay = Math.min(targetDay, maxDays);
+          occurrenceDate = new Date(targetYear, targetMonth, validDay);
+        }
         const dateKeyStr = formatDateKey(occurrenceDate);
 
         const occurrenceTaskId = shouldCreateTask ? `task-${Date.now()}-${i}` : undefined;
@@ -578,7 +625,8 @@ export function App() {
           id: occurrenceNoteId,
           taskId: occurrenceTaskId,
           date: dateKeyStr,
-          isMonthlyRecurring: true,
+          recurrence: isWeekly ? 'weekly' : 'monthly',
+          isMonthlyRecurring: !isWeekly,
           recurringGroupId,
           createdAt: new Date().toISOString(),
         });
@@ -595,7 +643,8 @@ export function App() {
             dueTime: noteData.time || undefined,
             assignee: 'Bea',
             checklist: [],
-            isMonthlyRecurring: true,
+            recurrence: isWeekly ? 'weekly' : 'monthly',
+            isMonthlyRecurring: !isWeekly,
             recurringGroupId,
             color: noteData.color,
             createdAt: new Date().toISOString(),
@@ -613,7 +662,12 @@ export function App() {
       }
 
       try {
-        await api.createNote(noteData);
+        await api.createNote({
+          ...noteData,
+          recurrence: isWeekly ? 'weekly' : 'monthly',
+          isMonthlyRecurring: !isWeekly,
+          recurringGroupId,
+        });
         const [sqlNotes, sqlTasks] = await Promise.all([api.getNotes(), api.getTasks()]);
         setNotes(sqlNotes);
         setTasks(sqlTasks);
@@ -702,8 +756,11 @@ export function App() {
     let deleteFuture = false;
 
     if (noteToDelete?.recurringGroupId) {
+      const isWeekly = noteToDelete.recurringGroupId.startsWith('recur-week-') || noteToDelete.recurrence === 'weekly';
+      const periodLabel = isWeekly ? 'semanal' : 'mensal';
+      const singleLabel = isWeekly ? 'desta semana' : 'deste mês';
       deleteFuture = window.confirm(
-        'Esta é uma anotação recorrente mensal.\n\nDeseja excluir todas as repetições futuras?\nClique em "OK" para excluir todas ou "Cancelar" para excluir apenas deste mês.'
+        `Esta é uma anotação recorrente ${periodLabel}.\n\nDeseja excluir todas as repetições futuras?\nClique em "OK" para excluir todas ou "Cancelar" para excluir apenas ${singleLabel}.`
       );
       if (deleteFuture) {
         setNotes((prev) =>

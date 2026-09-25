@@ -16,6 +16,8 @@ export interface ChecklistItem {
   completed: boolean;
 }
 
+export type RecurrenceType = 'none' | 'weekly' | 'monthly';
+
 export interface Task {
   id: string;
   title: string;
@@ -33,6 +35,7 @@ export interface Task {
   delayedAt?: string; // Data/hora em que entrou em atraso
   totalDelayedSeconds?: number; // Tempo total acumulado em atraso (segundos)
   completedDurationSeconds?: number; // Tempo total no Kanban até ser concluída (segundos)
+  recurrence?: RecurrenceType;
   isMonthlyRecurring?: boolean;
   recurringGroupId?: string;
   // Campos operacionais da dupla (Bea & Vini)
@@ -64,6 +67,7 @@ export interface DayNote {
   time?: string; // HH:mm
   isCompleted?: boolean;
   createdAt: string;
+  recurrence?: RecurrenceType;
   isMonthlyRecurring?: boolean;
   recurringGroupId?: string;
   sendToKanban?: boolean; // Se deve gerar/manter tarefa correspondente no Kanban
