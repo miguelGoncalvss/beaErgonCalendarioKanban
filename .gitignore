@@ -26,7 +26,6 @@ dist-ssr
 # Environment & Databases
 .env
 .env*.local
-*.db
-*.sqlite
-*.sqlite3
-server/*.db
+*.db*
+*.sqlite*
+server/*.db*
