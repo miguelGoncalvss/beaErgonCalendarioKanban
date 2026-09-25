@@ -154,8 +154,9 @@ export function App() {
   // Task Actions
   const handleAddTask = async (taskData: Omit<Task, 'id' | 'createdAt'>) => {
     // Tratamento otimista local
-    if (taskData.isMonthlyRecurring && taskData.dueDate) {
-      const baseDate = parseDateKey(taskData.dueDate);
+    if (taskData.isMonthlyRecurring) {
+      const baseDueDate = taskData.dueDate || formatDateKey(new Date());
+      const baseDate = parseDateKey(baseDueDate);
       const targetDay = baseDate.getDate();
       const recurringGroupId = `recur-${Date.now()}`;
       const newTasks: Task[] = [];
@@ -172,10 +173,18 @@ export function App() {
         const occurrenceTaskId = `task-${Date.now()}-${i}`;
         const occurrenceNoteId = `note-${Date.now()}-${i}`;
 
+        const checklistForOccurrence = (taskData.checklist || []).map((step) => ({
+          ...step,
+          id: `step-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+          completed: i === 0 ? Boolean(step.completed) : false,
+        }));
+
         newTasks.push({
           ...taskData,
           id: occurrenceTaskId,
+          status: i === 0 ? taskData.status : 'todo',
           dueDate: dateKeyStr,
+          checklist: checklistForOccurrence,
           isMonthlyRecurring: true,
           recurringGroupId,
           createdAt: new Date().toISOString(),
@@ -204,7 +213,7 @@ export function App() {
       setNotes((prev) => [...newNotes, ...prev]);
 
       try {
-        await api.createTask(taskData);
+        await api.createTask({ ...taskData, dueDate: baseDueDate });
         const [sqlTasks, sqlNotes] = await Promise.all([api.getTasks(), api.getNotes()]);
         setTasks(sqlTasks);
         setNotes(sqlNotes);
@@ -293,6 +302,12 @@ export function App() {
         const occurrenceTaskId = `task-${Date.now()}-${i}`;
         const occurrenceNoteId = `note-${Date.now()}-${i}`;
 
+        const checklistForOccurrence = (finalTask.checklist || []).map((step) => ({
+          ...step,
+          id: `step-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+          completed: false,
+        }));
+
         futureTasks.push({
           ...finalTask,
           id: occurrenceTaskId,
@@ -300,6 +315,7 @@ export function App() {
           isMonthlyRecurring: true,
           recurringGroupId,
           status: 'todo',
+          checklist: checklistForOccurrence,
           createdAt: new Date().toISOString(),
         });
 
@@ -327,6 +343,52 @@ export function App() {
         await api.migrateFromLocalStorage(futureTasks, futureNotes, []);
       } catch (err) {
         console.error('Erro ao propagar recorrência futura:', err);
+      }
+    }
+
+    if (existing?.isMonthlyRecurring && finalTask.recurringGroupId) {
+      const currentDueDate = finalTask.dueDate || '';
+      const updatedFutureTasks: Task[] = [];
+
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (
+            t.recurringGroupId === finalTask.recurringGroupId &&
+            t.id !== finalTask.id &&
+            t.dueDate &&
+            t.dueDate > currentDueDate &&
+            t.status === 'todo'
+          ) {
+            const existingStepTexts = new Set((t.checklist || []).map((s) => s.text.trim().toLowerCase()));
+            const newSteps = (finalTask.checklist || []).filter(
+              (s) => !existingStepTexts.has(s.text.trim().toLowerCase())
+            ).map((s) => ({
+              ...s,
+              id: `step-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              completed: false,
+            }));
+
+            if (newSteps.length > 0 || t.company !== finalTask.company || t.title !== finalTask.title) {
+              const updated = {
+                ...t,
+                title: finalTask.title,
+                description: finalTask.description,
+                company: finalTask.company,
+                color: finalTask.color,
+                checklist: [...(t.checklist || []), ...newSteps],
+              };
+              updatedFutureTasks.push(updated);
+              return updated;
+            }
+          }
+          return t;
+        })
+      );
+
+      if (updatedFutureTasks.length > 0) {
+        api.migrateFromLocalStorage(updatedFutureTasks, [], []).catch((e) =>
+          console.warn('Erro ao sincronizar novos itens do checklist nas repetições futuras:', e)
+        );
       }
     }
 

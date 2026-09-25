@@ -139,16 +139,18 @@ export const api = {
 
   async createTask(taskData: Omit<Task, 'id' | 'createdAt'>): Promise<Task | Task[]> {
     if (isSupabaseConfigured()) {
-      if (taskData.isMonthlyRecurring && taskData.dueDate) {
-        const baseDate = new Date(taskData.dueDate + 'T00:00:00');
-        const targetDay = baseDate.getDate();
+      if (taskData.isMonthlyRecurring) {
+        const fallbackDate = new Date().toISOString().split('T')[0];
+        const dateStrToUse = taskData.dueDate || fallbackDate;
+        const [yearStr, monthStr, dayStr] = dateStrToUse.split('-').map(Number);
+        const targetDay = dayStr || 1;
         const recurringGroupId = `recur-${Date.now()}`;
         const newTasks: any[] = [];
         const newNotes: any[] = [];
 
         for (let i = 0; i < 12; i++) {
-          const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
-          const targetMonth = (baseDate.getMonth() + i) % 12;
+          const targetYear = (yearStr || new Date().getFullYear()) + Math.floor(((monthStr ? monthStr - 1 : new Date().getMonth()) + i) / 12);
+          const targetMonth = ((monthStr ? monthStr - 1 : new Date().getMonth()) + i) % 12;
           const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
           const validDay = Math.min(targetDay, maxDays);
           const pad = (n: number) => String(n).padStart(2, '0');
@@ -157,10 +159,18 @@ export const api = {
           const occurrenceTaskId = `task-${Date.now()}-${i}`;
           const occurrenceNoteId = `note-${Date.now()}-${i}`;
 
+          const checklistForOccurrence = (taskData.checklist || []).map((step) => ({
+            ...step,
+            id: `step-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+            completed: i === 0 ? Boolean(step.completed) : false,
+          }));
+
           const t = {
             ...taskData,
             id: occurrenceTaskId,
+            status: i === 0 ? taskData.status : 'todo',
             dueDate: dateKeyStr,
+            checklist: checklistForOccurrence,
             isMonthlyRecurring: true,
             recurringGroupId,
             createdAt: new Date().toISOString(),
