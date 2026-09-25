@@ -86,6 +86,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [defaultColumnStatus, setDefaultColumnStatus] = useState<TaskStatus>('todo');
@@ -137,12 +138,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     }
   };
 
-  // Filter tasks by search, priority, and company
+  // Filter tasks by search, priority, company and assignee
   const filteredTasks = monthTasks.filter((task) => {
     const matchesQuery =
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      task.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (task.company && task.company.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesPriority =
@@ -151,7 +151,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     const matchesCompany =
       companyFilter === 'all' || task.company === companyFilter;
 
-    return matchesQuery && matchesPriority && matchesCompany;
+    const matchesAssignee =
+      assigneeFilter === 'all'
+        ? true
+        : assigneeFilter === 'paused'
+          ? Boolean(task.isPaused)
+          : (task.assignee || 'Miguel') === assigneeFilter;
+
+    return matchesQuery && matchesPriority && matchesCompany && matchesAssignee;
   });
 
   const today = new Date();
@@ -212,6 +219,56 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <option value="medium">Média</option>
               <option value="low">Baixa</option>
             </select>
+          </div>
+
+          {/* Quick Assignee / Status Filters */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+            <button
+              type="button"
+              onClick={() => setAssigneeFilter('all')}
+              className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer text-[11px] ${
+                assigneeFilter === 'all'
+                  ? 'bg-white text-[#0d345e] shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssigneeFilter('Miguel')}
+              className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer text-[11px] flex items-center gap-1 ${
+                assigneeFilter === 'Miguel'
+                  ? 'bg-[#0d345e] text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-[#0d345e]'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              Miguel
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssigneeFilter('Vini')}
+              className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer text-[11px] flex items-center gap-1 ${
+                assigneeFilter === 'Vini'
+                  ? 'bg-indigo-900 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-indigo-900'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+              Vini
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssigneeFilter('paused')}
+              className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer text-[11px] flex items-center gap-1 ${
+                assigneeFilter === 'paused'
+                  ? 'bg-amber-500 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-amber-800'
+              }`}
+            >
+              ⏸️ Pausadas
+            </button>
           </div>
         </div>
 
@@ -286,6 +343,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 onEditTask={handleEditTask}
                 onDeleteTask={onDeleteTask}
                 onMoveStatus={onMoveTaskStatus}
+                onUpdateTask={onUpdateTask}
                 onSelectDueDate={onSelectDueDate}
               />
             );

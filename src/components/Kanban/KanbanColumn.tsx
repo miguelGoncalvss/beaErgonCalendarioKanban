@@ -17,6 +17,7 @@ interface KanbanColumnProps {
   onEditTask: (task: Task) => void;
   onDeleteTask: (id: string) => void;
   onMoveStatus: (id: string, newStatus: TaskStatus) => void;
+  onUpdateTask?: (task: Task) => void;
   onSelectDueDate?: (dateKey: string) => void;
 }
 
@@ -30,6 +31,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onEditTask,
   onDeleteTask,
   onMoveStatus,
+  onUpdateTask,
   onSelectDueDate,
 }) => {
   const [isOver, setIsOver] = useState(false);
@@ -98,6 +100,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             onEdit={onEditTask}
             onDelete={onDeleteTask}
             onMoveStatus={onMoveStatus}
+            onUpdateTask={onUpdateTask}
             onSelectDueDate={onSelectDueDate}
           />
         ))}

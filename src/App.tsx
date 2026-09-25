@@ -89,9 +89,14 @@ export function App() {
     initFromSQL();
   }, [syncWithDatabase]);
 
-  // 2. Sincronização periódica em segundo plano (a cada 4s) e quando a janela ganhar foco
-  // Mantém a equipe usando o sistema sempre com dados atualizados!
+  // 2. Sincronização em tempo real (Supabase Realtime) + polling de segurança
+  // Mantém a dupla (Miguel & Vini) sempre com dados sincronizados instantaneamente!
   useEffect(() => {
+    // Escuta alterações em tempo real via websockets do Supabase
+    const unsubscribe = api.subscribeToRealtime(() => {
+      syncWithDatabase();
+    });
+
     const interval = setInterval(() => {
       syncWithDatabase();
     }, 4000);
@@ -102,6 +107,7 @@ export function App() {
 
     window.addEventListener('focus', handleFocus);
     return () => {
+      unsubscribe();
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
@@ -426,10 +432,6 @@ export function App() {
     if (noteData.category === 'urgente') priority = 'urgent';
     else if (noteData.category === 'ideia') priority = 'low';
 
-    const categoryTag = noteData.category
-      ? noteData.category.charAt(0).toUpperCase() + noteData.category.slice(1)
-      : 'Calendário';
-
     if (noteData.isMonthlyRecurring) {
       const baseDate = parseDateKey(noteData.date);
       const targetDay = baseDate.getDate();
@@ -467,7 +469,8 @@ export function App() {
           priority,
           dueDate: dateKeyStr,
           dueTime: noteData.time || undefined,
-          tags: [categoryTag, 'Recorrente'],
+          assignee: 'Miguel',
+          checklist: [],
           isMonthlyRecurring: true,
           recurringGroupId,
           color: noteData.color,
@@ -517,7 +520,8 @@ export function App() {
       priority,
       dueDate: noteData.date,
       dueTime: noteData.time || undefined,
-      tags: [categoryTag],
+      assignee: 'Miguel',
+      checklist: [],
       color: noteData.color,
       createdAt: new Date().toISOString(),
     };

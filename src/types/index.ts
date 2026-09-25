@@ -10,15 +10,21 @@ export interface StageTransition {
   durationSeconds?: number;
 }
 
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   title: string;
-  description?: string;
+  description?: string; // Observações / notas
   status: TaskStatus;
   priority: TaskPriority;
   dueDate?: string; // YYYY-MM-DD
   dueTime?: string; // HH:mm - "Até quando deve ser feito?"
-  tags: string[];
+  tags?: string[];
   company?: string; // Empresa / Cliente (Setor Contábil)
   color?: string; // Faixa de cor / tag visual personalizada (Hex code ou nome)
   createdAt: string;
@@ -29,6 +35,13 @@ export interface Task {
   completedDurationSeconds?: number; // Tempo total no Kanban até ser concluída (segundos)
   isMonthlyRecurring?: boolean;
   recurringGroupId?: string;
+  // Campos operacionais da dupla (Miguel & Vini)
+  assignee?: string; // Com quem está a tarefa ("Miguel" | "Vini")
+  checklist?: ChecklistItem[]; // Etapas do processo da empresa (To-Do)
+  isPaused?: boolean; // Se o tempo da tarefa está pausado
+  pausedReason?: string; // Motivo da pausa (ex: "Aguardando cliente enviar extrato")
+  pausedAt?: string; // Data/hora em que foi pausado
+  totalPausedSeconds?: number; // Tempo total acumulado em pausa
   // Metadados de tempo e auditoria da administração
   stageEnteredAt?: string; // Data/hora em que entrou no estágio atual
   startedAt?: string; // Data/hora do início da execução ("Fazendo")

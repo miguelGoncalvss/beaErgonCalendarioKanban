@@ -10,6 +10,11 @@ const JSON_HEADERS: HeadersInit = {
 // ==================== MAPEADORES SUPABASE (Postgres <-> JS) ====================
 
 function mapTaskFromSupabase(r: any): Task {
+  let meta: any = {};
+  if (Array.isArray(r.tags) && r.tags.length > 0 && typeof r.tags[0] === 'object' && r.tags[0] !== null) {
+    meta = r.tags[0];
+  }
+
   return {
     id: r.id,
     title: r.title,
@@ -18,7 +23,6 @@ function mapTaskFromSupabase(r: any): Task {
     priority: r.priority,
     dueDate: r.due_date || undefined,
     dueTime: r.due_time || undefined,
-    tags: Array.isArray(r.tags) ? r.tags : [],
     company: r.company || undefined,
     color: r.color || undefined,
     createdAt: r.created_at,
@@ -29,6 +33,12 @@ function mapTaskFromSupabase(r: any): Task {
     completedDurationSeconds: r.completed_duration_seconds || undefined,
     isMonthlyRecurring: Boolean(r.is_monthly_recurring),
     recurringGroupId: r.recurring_group_id || undefined,
+    assignee: meta.assignee || r.assignee || 'Miguel',
+    checklist: Array.isArray(meta.checklist) ? meta.checklist : (Array.isArray(r.checklist) ? r.checklist : []),
+    isPaused: Boolean(meta.isPaused ?? r.is_paused),
+    pausedReason: meta.pausedReason || r.paused_reason || undefined,
+    pausedAt: meta.pausedAt || r.paused_at || undefined,
+    totalPausedSeconds: meta.totalPausedSeconds || r.total_paused_seconds || 0,
     stageEnteredAt: r.stage_entered_at || undefined,
     startedAt: r.started_at || undefined,
     timeInTodoSeconds: r.time_in_todo_seconds || 0,
@@ -38,6 +48,15 @@ function mapTaskFromSupabase(r: any): Task {
 }
 
 function mapTaskToSupabase(task: any) {
+  const meta = {
+    assignee: task.assignee || 'Miguel',
+    checklist: task.checklist || [],
+    isPaused: Boolean(task.isPaused),
+    pausedReason: task.pausedReason || null,
+    pausedAt: task.pausedAt || null,
+    totalPausedSeconds: task.totalPausedSeconds || 0,
+  };
+
   return {
     id: task.id,
     title: task.title,
@@ -46,7 +65,7 @@ function mapTaskToSupabase(task: any) {
     priority: task.priority,
     due_date: task.dueDate || null,
     due_time: task.dueTime || null,
-    tags: task.tags || [],
+    tags: [meta], // Armazena com segurança no JSONB tags já existente no Supabase
     company: task.company || null,
     color: task.color || null,
     is_monthly_recurring: Boolean(task.isMonthlyRecurring),
@@ -749,5 +768,27 @@ export const api = {
   // ==================== MIGRAÇÃO LOCALSTORAGE ====================
   async migrateFromLocalStorage(_tasks: any[], _notes: any[], _companies: any[]): Promise<boolean> {
     return true;
+  },
+
+  // ==================== TEMPO REAL (SUPABASE REALTIME) ====================
+  subscribeToRealtime(onSync: () => void): () => void {
+    if (!isSupabaseConfigured()) return () => {};
+
+    const channel = supabase
+      .channel('public-db-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        onSync();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'day_notes' }, () => {
+        onSync();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => {
+        onSync();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 };

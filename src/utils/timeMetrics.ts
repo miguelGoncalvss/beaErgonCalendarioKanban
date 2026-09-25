@@ -58,32 +58,37 @@ export function formatDurationLong(seconds?: number | null): string {
 }
 
 /**
+ * Retorna os segundos totais que a tarefa passou em pausa (ao vivo se estiver pausada agora)
+ */
+export function getLivePausedSeconds(task: Task): number {
+  let total = task.totalPausedSeconds || 0;
+  if (task.isPaused && task.pausedAt) {
+    const pauseStart = new Date(task.pausedAt).getTime();
+    if (!isNaN(pauseStart)) {
+      total += Math.max(0, Math.floor((Date.now() - pauseStart) / 1000));
+    }
+  }
+  return total;
+}
+
+/**
  * Retorna os segundos totais que a tarefa passou no Kanban (ao vivo se ainda não concluída)
  * Garante que a soma total reflita o somatório do tempo de permanência de cada etapa.
  */
 export function getLiveKanbanDurationSeconds(task: Task): number {
   if (task.completedDurationSeconds != null && task.completedDurationSeconds > 0) {
-    return task.completedDurationSeconds;
+    return Math.max(0, task.completedDurationSeconds - (task.totalPausedSeconds || 0));
   }
 
   const todo = getLiveTodoDurationSeconds(task);
   const inProgress = getLiveInProgressDurationSeconds(task);
   const delayed = getLiveDelayedDurationSeconds(task);
-  const sumStages = todo + inProgress + delayed;
-
-  if (task.createdAt) {
-    const start = new Date(task.createdAt).getTime();
-    if (!isNaN(start)) {
-      const elapsedSinceCreation = Math.max(0, Math.floor((Date.now() - start) / 1000));
-      return Math.max(sumStages, elapsedSinceCreation);
-    }
-  }
-
-  return sumStages;
+  return todo + inProgress + delayed;
 }
 
 /**
  * Retorna os segundos totais acumulados no status "A Fazer" (ao vivo se estiver em "todo" agora)
+ * Congela quando a tarefa estiver pausada (aguardando cliente)
  */
 export function getLiveTodoDurationSeconds(task: Task): number {
   let total = task.timeInTodoSeconds || 0;
@@ -93,7 +98,10 @@ export function getLiveTodoDurationSeconds(task: Task): number {
       ? new Date(task.stageEnteredAt).getTime() 
       : (task.createdAt ? new Date(task.createdAt).getTime() : Date.now());
     if (!isNaN(stageStart)) {
-      total += Math.max(0, Math.floor((Date.now() - stageStart) / 1000));
+      const activeEnd = (task.isPaused && task.pausedAt)
+        ? new Date(task.pausedAt).getTime()
+        : Date.now();
+      total += Math.max(0, Math.floor((activeEnd - stageStart) / 1000));
     }
   }
 
@@ -102,6 +110,7 @@ export function getLiveTodoDurationSeconds(task: Task): number {
 
 /**
  * Retorna os segundos totais acumulados no status "Fazendo" (ao vivo se estiver em execução agora)
+ * Congela quando a tarefa estiver pausada (aguardando cliente)
  */
 export function getLiveInProgressDurationSeconds(task: Task): number {
   let total = task.timeInProgressSeconds || 0;
@@ -111,7 +120,10 @@ export function getLiveInProgressDurationSeconds(task: Task): number {
       ? new Date(task.stageEnteredAt).getTime() 
       : (task.startedAt ? new Date(task.startedAt).getTime() : Date.now());
     if (!isNaN(stageStart)) {
-      total += Math.max(0, Math.floor((Date.now() - stageStart) / 1000));
+      const activeEnd = (task.isPaused && task.pausedAt)
+        ? new Date(task.pausedAt).getTime()
+        : Date.now();
+      total += Math.max(0, Math.floor((activeEnd - stageStart) / 1000));
     }
   }
 
@@ -120,6 +132,7 @@ export function getLiveInProgressDurationSeconds(task: Task): number {
 
 /**
  * Retorna os segundos totais que a tarefa acumulou em atraso (ao vivo se estiver atrasada agora)
+ * Congela quando a tarefa estiver pausada (aguardando cliente)
  */
 export function getLiveDelayedDurationSeconds(task: Task): number {
   let total = task.totalDelayedSeconds || 0;
@@ -129,7 +142,10 @@ export function getLiveDelayedDurationSeconds(task: Task): number {
       ? new Date(task.delayedAt).getTime() 
       : (task.stageEnteredAt ? new Date(task.stageEnteredAt).getTime() : Date.now());
     if (!isNaN(delayedStart)) {
-      total += Math.max(0, Math.floor((Date.now() - delayedStart) / 1000));
+      const activeEnd = (task.isPaused && task.pausedAt)
+        ? new Date(task.pausedAt).getTime()
+        : Date.now();
+      total += Math.max(0, Math.floor((activeEnd - delayedStart) / 1000));
     }
   }
 
@@ -214,6 +230,21 @@ export function getTaskSlaInfo(task: Task): TaskSlaInfo {
         formattedDiff: `${formatDuration(lateDiff)} após o prazo`,
       };
     }
+  }
+
+  // Se a tarefa estiver pausada (aguardando cliente/documentos)
+  if (task.isPaused) {
+    return {
+      hasDeadline: true,
+      deadlineFormatted: formattedDate,
+      deadlineTimestamp,
+      isBreached: false,
+      status: 'warning',
+      statusLabel: `Pausado: ${task.pausedReason || 'Aguardando Cliente'}`,
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+      diffSeconds: 0,
+      formattedDiff: 'Pausa (não conta atraso)',
+    };
   }
 
   // Tarefa ainda não concluída
