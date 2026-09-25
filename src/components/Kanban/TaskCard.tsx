@@ -72,8 +72,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const isOverdue = slaInfo.isBreached && task.status !== 'done' && !task.isPaused;
   const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
 
-  const currentAssignee = task.assignee || 'Miguel';
-  const otherAssignee = currentAssignee === 'Vini' ? 'Miguel' : 'Vini';
+  const currentAssignee = task.assignee || 'Bea';
+  const otherAssignee = currentAssignee === 'Vini' ? 'Bea' : 'Vini';
 
   const checklist = task.checklist || [];
   const completedSteps = checklist.filter((s) => s.completed).length;

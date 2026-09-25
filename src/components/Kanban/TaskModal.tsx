@@ -77,7 +77,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [dueTime, setDueTime] = useState('');
   const [company, setCompany] = useState('');
   const [color, setColor] = useState<string | undefined>(undefined);
-  const [assignee, setAssignee] = useState<string>('Miguel');
+  const [assignee, setAssignee] = useState<string>('Bea');
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [newStepText, setNewStepText] = useState('');
   const [isPaused, setIsPaused] = useState(false);
@@ -96,7 +96,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setDueTime(editingTask.dueTime || '');
       setCompany(editingTask.company || '');
       setColor(editingTask.color);
-      setAssignee(editingTask.assignee || 'Miguel');
+      setAssignee(editingTask.assignee || 'Bea');
       setChecklist(editingTask.checklist ? [...editingTask.checklist] : []);
       setIsPaused(Boolean(editingTask.isPaused));
       setPausedReason(editingTask.pausedReason || '');
@@ -109,7 +109,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setDueTime('');
       setCompany('');
       setColor(undefined);
-      setAssignee('Miguel');
+      setAssignee('Bea');
       setChecklist([]);
       setIsPaused(false);
       setPausedReason('');
@@ -334,7 +334,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             )}
           </div>
 
-          {/* PASSAGEM DE BASTÃO: Responsável Atual (Miguel vs Vini) */}
+          {/* PASSAGEM DE BASTÃO: Responsável Atual (Bea vs Vini) */}
           <div className="p-3 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-xl space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-extrabold text-[#0d345e] uppercase tracking-wider flex items-center gap-1.5 m-0">
@@ -349,16 +349,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setAssignee('Miguel')}
+                onClick={() => setAssignee('Bea')}
                 className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition cursor-pointer ${
-                  assignee === 'Miguel'
+                  assignee === 'Bea'
                     ? 'bg-[#0d345e] text-white border-[#08223f] shadow-sm'
                     : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <div className={`w-2 h-2 rounded-full ${assignee === 'Miguel' ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                <span>Miguel</span>
-                {assignee === 'Miguel' && <span className="text-[10px] opacity-80">(ativo)</span>}
+                <div className={`w-2 h-2 rounded-full ${assignee === 'Bea' ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                <span>Bea</span>
+                {assignee === 'Bea' && <span className="text-[10px] opacity-80">(ativo)</span>}
               </button>
 
               <button

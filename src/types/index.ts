@@ -35,8 +35,8 @@ export interface Task {
   completedDurationSeconds?: number; // Tempo total no Kanban até ser concluída (segundos)
   isMonthlyRecurring?: boolean;
   recurringGroupId?: string;
-  // Campos operacionais da dupla (Miguel & Vini)
-  assignee?: string; // Com quem está a tarefa ("Miguel" | "Vini")
+  // Campos operacionais da dupla (Bea & Vini)
+  assignee?: string; // Com quem está a tarefa ("Bea" | "Vini")
   checklist?: ChecklistItem[]; // Etapas do processo da empresa (To-Do)
   isPaused?: boolean; // Se o tempo da tarefa está pausado
   pausedReason?: string; // Motivo da pausa (ex: "Aguardando cliente enviar extrato")

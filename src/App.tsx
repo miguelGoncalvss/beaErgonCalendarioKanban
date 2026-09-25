@@ -90,7 +90,7 @@ export function App() {
   }, [syncWithDatabase]);
 
   // 2. Sincronização em tempo real (Supabase Realtime) + polling de segurança
-  // Mantém a dupla (Miguel & Vini) sempre com dados sincronizados instantaneamente!
+  // Mantém a dupla (Bea & Vini) sempre com dados sincronizados instantaneamente!
   useEffect(() => {
     // Escuta alterações em tempo real via websockets do Supabase
     const unsubscribe = api.subscribeToRealtime(() => {
@@ -469,7 +469,7 @@ export function App() {
           priority,
           dueDate: dateKeyStr,
           dueTime: noteData.time || undefined,
-          assignee: 'Miguel',
+          assignee: 'Bea',
           checklist: [],
           isMonthlyRecurring: true,
           recurringGroupId,
@@ -520,7 +520,7 @@ export function App() {
       priority,
       dueDate: noteData.date,
       dueTime: noteData.time || undefined,
-      assignee: 'Miguel',
+      assignee: 'Bea',
       checklist: [],
       color: noteData.color,
       createdAt: new Date().toISOString(),

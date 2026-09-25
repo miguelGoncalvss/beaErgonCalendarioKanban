@@ -156,7 +156,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         ? true
         : assigneeFilter === 'paused'
           ? Boolean(task.isPaused)
-          : (task.assignee || 'Miguel') === assigneeFilter;
+          : (task.assignee || 'Bea') === assigneeFilter;
 
     return matchesQuery && matchesPriority && matchesCompany && matchesAssignee;
   });
@@ -236,15 +236,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setAssigneeFilter('Miguel')}
+              onClick={() => setAssigneeFilter('Bea')}
               className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer text-[11px] flex items-center gap-1 ${
-                assigneeFilter === 'Miguel'
+                assigneeFilter === 'Bea'
                   ? 'bg-[#0d345e] text-white shadow-2xs'
                   : 'text-slate-600 hover:text-[#0d345e]'
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              Miguel
+              Bea
             </button>
             <button
               type="button"

@@ -33,7 +33,7 @@ function mapTaskFromSupabase(r: any): Task {
     completedDurationSeconds: r.completed_duration_seconds || undefined,
     isMonthlyRecurring: Boolean(r.is_monthly_recurring),
     recurringGroupId: r.recurring_group_id || undefined,
-    assignee: meta.assignee || r.assignee || 'Miguel',
+    assignee: meta.assignee || r.assignee || 'Bea',
     checklist: Array.isArray(meta.checklist) ? meta.checklist : (Array.isArray(r.checklist) ? r.checklist : []),
     isPaused: Boolean(meta.isPaused ?? r.is_paused),
     pausedReason: meta.pausedReason || r.paused_reason || undefined,
@@ -49,7 +49,7 @@ function mapTaskFromSupabase(r: any): Task {
 
 function mapTaskToSupabase(task: any) {
   const meta = {
-    assignee: task.assignee || 'Miguel',
+    assignee: task.assignee || 'Bea',
     checklist: task.checklist || [],
     isPaused: Boolean(task.isPaused),
     pausedReason: task.pausedReason || null,
@@ -189,7 +189,7 @@ export const api = {
         if (nErr) throw nErr;
 
         if (taskData.company) {
-          await this.createCompany(taskData.company);
+          await api.createCompany(taskData.company);
         }
 
         return newTasks.map(mapTaskFromSupabase);
@@ -204,7 +204,7 @@ export const api = {
       if (error) throw error;
 
       if (newTask.company) {
-        await this.createCompany(newTask.company);
+        await api.createCompany(newTask.company);
       }
 
       return newTask as Task;
@@ -242,7 +242,7 @@ export const api = {
         .eq('task_id', task.id);
 
       if (task.company) {
-        await this.createCompany(task.company);
+        await api.createCompany(task.company);
       }
 
       return task;
@@ -493,7 +493,7 @@ export const api = {
         if (nErr) throw nErr;
 
         if (noteData.company) {
-          await this.createCompany(noteData.company);
+          await api.createCompany(noteData.company);
         }
 
         return newNotes.map(mapNoteFromSupabase);
@@ -530,7 +530,7 @@ export const api = {
       if (nErr) throw nErr;
 
       if (noteData.company) {
-        await this.createCompany(noteData.company);
+        await api.createCompany(noteData.company);
       }
 
       return {
@@ -586,7 +586,7 @@ export const api = {
       }
 
       if (note.company) {
-        await this.createCompany(note.company);
+        await api.createCompany(note.company);
       }
 
       return note;
@@ -617,7 +617,7 @@ export const api = {
         .eq('id', id);
 
       if (current.task_id) {
-        await this.updateTaskStatus(current.task_id, nextCompleted ? 'done' : 'todo');
+        await api.updateTaskStatus(current.task_id, nextCompleted ? 'done' : 'todo');
       }
       return;
     }
@@ -766,8 +766,33 @@ export const api = {
   },
 
   // ==================== MIGRAÇÃO LOCALSTORAGE ====================
-  async migrateFromLocalStorage(_tasks: any[], _notes: any[], _companies: any[]): Promise<boolean> {
-    return true;
+  async migrateFromLocalStorage(localTasks: Task[], localNotes: DayNote[], localCompanies: string[]): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+    try {
+      if (Array.isArray(localCompanies) && localCompanies.length > 0) {
+        const payload = localCompanies
+          .map((name) => ({ name: String(name).trim() }))
+          .filter((c) => Boolean(c.name));
+        if (payload.length > 0) {
+          await supabase.from('companies').upsert(payload, { onConflict: 'name' });
+        }
+      }
+
+      if (Array.isArray(localTasks) && localTasks.length > 0) {
+        const payload = localTasks.map(mapTaskToSupabase);
+        await supabase.from('tasks').upsert(payload, { onConflict: 'id' });
+      }
+
+      if (Array.isArray(localNotes) && localNotes.length > 0) {
+        const payload = localNotes.map(mapNoteToSupabase);
+        await supabase.from('day_notes').upsert(payload, { onConflict: 'id' });
+      }
+
+      return true;
+    } catch (err) {
+      console.warn('Erro ao migrar dados locais para Supabase:', err);
+      return false;
+    }
   },
 
   // ==================== TEMPO REAL (SUPABASE REALTIME) ====================
