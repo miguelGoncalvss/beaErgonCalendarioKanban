@@ -14,7 +14,8 @@ import {
   PauseCircle, 
   PlayCircle, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Repeat
 } from 'lucide-react';
 import type { Task, TaskPriority, TaskStatus, ChecklistItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -82,6 +83,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [newStepText, setNewStepText] = useState('');
   const [isPaused, setIsPaused] = useState(false);
   const [pausedReason, setPausedReason] = useState('');
+  const [isMonthlyRecurring, setIsMonthlyRecurring] = useState(false);
   const [isCreatingCompany, setIsCreatingCompany] = useState(false);
   const [customCompanyName, setCustomCompanyName] = useState('');
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
@@ -100,6 +102,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setChecklist(editingTask.checklist ? [...editingTask.checklist] : []);
       setIsPaused(Boolean(editingTask.isPaused));
       setPausedReason(editingTask.pausedReason || '');
+      setIsMonthlyRecurring(Boolean(editingTask.isMonthlyRecurring));
     } else {
       setTitle('');
       setDescription('');
@@ -113,6 +116,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setChecklist([]);
       setIsPaused(false);
       setPausedReason('');
+      setIsMonthlyRecurring(false);
     }
     setNewStepText('');
     setIsCreatingCompany(false);
@@ -182,6 +186,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           : undefined,
         pausedAt: isPaused ? updatedPausedAt : undefined,
         totalPausedSeconds: updatedTotalPaused,
+        isMonthlyRecurring,
       },
       editingTask ? editingTask.id : undefined
     );
@@ -654,6 +659,25 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Repetir todo mês (Recorrência Mensal Automática) */}
+          <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isMonthlyRecurring}
+                onChange={(e) => setIsMonthlyRecurring(e.target.checked)}
+                className="w-4 h-4 rounded text-[#0d345e] focus:ring-[#0d345e] cursor-pointer"
+              />
+              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <Repeat className="w-3.5 h-3.5 text-amber-600" />
+                Repetir todo mês automaticamente (12 meses)
+              </span>
+            </label>
+            <p className="text-[10.5px] text-amber-800 m-0 pl-6 leading-tight">
+              Gera automaticamente a mesma demanda e etapas para os próximos 12 meses. Ideal para rotinas contábeis recorrentes de cada empresa (fechamento, DCTFWeb, folha).
+            </p>
           </div>
 
           {/* Observações da Empresa (Simples) */}

@@ -271,6 +271,65 @@ export function App() {
       };
     }
 
+    if (!existing?.isMonthlyRecurring && finalTask.isMonthlyRecurring) {
+      const baseDueDate = finalTask.dueDate || formatDateKey(new Date());
+      const baseDate = parseDateKey(baseDueDate);
+      const targetDay = baseDate.getDate();
+      const recurringGroupId = finalTask.recurringGroupId || `recur-${Date.now()}`;
+      finalTask.recurringGroupId = recurringGroupId;
+      finalTask.isMonthlyRecurring = true;
+
+      const futureTasks: Task[] = [];
+      const futureNotes: DayNote[] = [];
+
+      for (let i = 1; i < 12; i++) {
+        const targetYear = baseDate.getFullYear() + Math.floor((baseDate.getMonth() + i) / 12);
+        const targetMonth = (baseDate.getMonth() + i) % 12;
+        const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const validDay = Math.min(targetDay, maxDays);
+        const occurrenceDate = new Date(targetYear, targetMonth, validDay);
+        const dateKeyStr = formatDateKey(occurrenceDate);
+
+        const occurrenceTaskId = `task-${Date.now()}-${i}`;
+        const occurrenceNoteId = `note-${Date.now()}-${i}`;
+
+        futureTasks.push({
+          ...finalTask,
+          id: occurrenceTaskId,
+          dueDate: dateKeyStr,
+          isMonthlyRecurring: true,
+          recurringGroupId,
+          status: 'todo',
+          createdAt: new Date().toISOString(),
+        });
+
+        futureNotes.push({
+          id: occurrenceNoteId,
+          taskId: occurrenceTaskId,
+          date: dateKeyStr,
+          title: finalTask.title,
+          content: finalTask.description,
+          category: 'geral',
+          company: finalTask.company,
+          isMonthlyRecurring: true,
+          recurringGroupId,
+          color: finalTask.color,
+          time: finalTask.dueTime,
+          isCompleted: false,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setTasks((prev) => [...prev, ...futureTasks]);
+      setNotes((prev) => [...prev, ...futureNotes]);
+
+      try {
+        await api.migrateFromLocalStorage(futureTasks, futureNotes, []);
+      } catch (err) {
+        console.error('Erro ao propagar recorrência futura:', err);
+      }
+    }
+
     setTasks((prev) =>
       prev.map((t) => (t.id === finalTask.id ? finalTask : t))
     );
