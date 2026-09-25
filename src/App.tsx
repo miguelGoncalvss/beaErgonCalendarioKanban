@@ -20,6 +20,7 @@ import { KanbanBoard } from './components/Kanban/KanbanBoard';
 import { TaskModal } from './components/Kanban/TaskModal';
 import { DayNotesModal } from './components/Calendar/DayNotesModal';
 import { AdminMetricsModal } from './components/Admin/AdminMetricsModal';
+import { CompanyManagerModal } from './components/Common/CompanyManagerModal';
 import { formatDateKey, parseDateKey } from './utils/dateUtils';
 
 export function App() {
@@ -38,6 +39,7 @@ export function App() {
   const [isNewNoteModalOpen, setIsNewNoteModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isAdminMetricsOpen, setIsAdminMetricsOpen] = useState(false);
+  const [isCompanyManagerOpen, setIsCompanyManagerOpen] = useState(false);
 
   // Sincronização centralizada com o banco de dados
   const syncWithDatabase = useCallback(async () => {
@@ -128,7 +130,18 @@ export function App() {
       const updatedComps = await api.getCompanies();
       setCompanies(updatedComps);
     } catch (err) {
-      console.error('Erro ao cadastrar empresa no SQL:', err);
+      console.error('Erro ao cadastrar empresa:', err);
+    }
+  };
+
+  const handleDeleteCompany = async (companyToDelete: string) => {
+    setCompanies((prev) => prev.filter((c) => c !== companyToDelete));
+    try {
+      await api.deleteCompany(companyToDelete);
+      const updatedComps = await api.getCompanies();
+      setCompanies(updatedComps);
+    } catch (err) {
+      console.error('Erro ao excluir empresa:', err);
     }
   };
 
@@ -631,6 +644,7 @@ export function App() {
       {/* Top Navbar */}
       <Navbar 
         onOpenAdminMetrics={() => setIsAdminMetricsOpen(true)}
+        onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
       />
 
       {/* View Switcher: Lado a Lado | Calendário | Kanban */}
@@ -754,6 +768,7 @@ export function App() {
         defaultDueDate={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`}
         companies={companies}
         onAddNewCompany={handleAddNewCompany}
+        onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
       />
 
       <DayNotesModal
@@ -767,6 +782,7 @@ export function App() {
         tasksDue={selectedDateKey ? tasks.filter((t) => t.dueDate === selectedDateKey) : []}
         companies={companies}
         onAddNewCompany={handleAddNewCompany}
+        onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
         onAddNote={handleAddNote}
         onUpdateNote={handleUpdateNote}
         onToggleNoteComplete={handleToggleNoteComplete}
@@ -780,6 +796,16 @@ export function App() {
         onClose={() => setIsAdminMetricsOpen(false)}
         tasks={tasks}
         companies={companies}
+      />
+
+      {/* Modal de Gerenciamento e Exclusão de Empresas */}
+      <CompanyManagerModal
+        isOpen={isCompanyManagerOpen}
+        onClose={() => setIsCompanyManagerOpen(false)}
+        companies={companies}
+        tasks={tasks}
+        onAddNewCompany={handleAddNewCompany}
+        onDeleteCompany={handleDeleteCompany}
       />
     </div>
   );

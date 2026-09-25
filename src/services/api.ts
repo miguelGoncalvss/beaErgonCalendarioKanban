@@ -318,6 +318,7 @@ export const api = {
         completed_duration_seconds: completedDurationSeconds,
         time_in_todo_seconds: timeInTodoSeconds,
         time_in_progress_seconds: timeInProgressSeconds,
+        total_delayed_seconds: totalDelayedSeconds,
         stage_history: history,
         updated_at: nowIso,
       };
@@ -688,6 +689,25 @@ export const api = {
       body: JSON.stringify({ name: trimmed, cnpj }),
     });
     if (!res.ok) throw new Error('Falha ao cadastrar empresa');
+  },
+
+  async deleteCompany(name: string): Promise<void> {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase
+        .from('companies')
+        .delete()
+        .eq('name', trimmed);
+      if (error) throw error;
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/companies/${encodeURIComponent(trimmed)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Falha ao excluir empresa');
   },
 
   // ==================== AUTENTICAÇÃO (MOCK/SIMPLIFICADO) ====================

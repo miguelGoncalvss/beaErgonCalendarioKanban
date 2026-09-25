@@ -1,12 +1,13 @@
-import React from 'react';
-import { ShieldCheck, Users } from 'lucide-react';
+import { ShieldCheck, Users, Building2 } from 'lucide-react';
 
 interface NavbarProps {
   onOpenAdminMetrics?: () => void;
+  onOpenCompanyManager?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
-  onOpenAdminMetrics, 
+  onOpenAdminMetrics,
+  onOpenCompanyManager,
 }) => {
   return (
     <header className="bg-[#0d345e] text-white border-b-2 border-amber-400 shadow-md sticky top-0 z-30 font-['Inter',sans-serif]">
@@ -36,6 +37,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Section Actions */}
         <div className="flex items-center gap-2.5">
+          {/* Manage Companies Button */}
+          {onOpenCompanyManager && (
+            <button
+              onClick={onOpenCompanyManager}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#08223f] hover:bg-blue-900 border border-blue-800 hover:border-amber-400/60 text-blue-100 hover:text-amber-300 text-xs font-semibold transition cursor-pointer shadow-xs"
+              title="Gerenciar e excluir empresas / clientes cadastrados"
+            >
+              <Building2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Empresas</span>
+            </button>
+          )}
+
           {/* Admin Metrics Button */}
           {onOpenAdminMetrics && (
             <button

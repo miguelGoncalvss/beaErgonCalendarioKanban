@@ -29,6 +29,7 @@ interface DayNotesModalProps {
   companies?: string[];
   initialShowAddForm?: boolean;
   onAddNewCompany?: (company: string) => void;
+  onOpenCompanyManager?: () => void;
   onAddNote: (note: Omit<DayNote, 'id' | 'createdAt'>) => void;
   onUpdateNote?: (note: DayNote) => void;
   onToggleNoteComplete: (id: string) => void;
@@ -85,6 +86,7 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
   companies = [],
   initialShowAddForm = false,
   onAddNewCompany,
+  onOpenCompanyManager,
   onAddNote,
   onUpdateNote,
   onToggleNoteComplete,
@@ -394,14 +396,26 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                     Empresa / Cliente Contábil
                   </span>
                   {!isCreatingCompany && (
-                    <button
-                      type="button"
-                      onClick={() => setIsCreatingCompany(true)}
-                      className="text-[11px] font-semibold text-[#0d345e] hover:text-blue-900 hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Nova Empresa
-                    </button>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingCompany(true)}
+                        className="text-[11px] font-semibold text-[#0d345e] hover:text-blue-900 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Nova Empresa
+                      </button>
+                      {onOpenCompanyManager && (
+                        <button
+                          type="button"
+                          onClick={onOpenCompanyManager}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+                          title="Gerenciar e excluir empresas"
+                        >
+                          Gerenciar
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 

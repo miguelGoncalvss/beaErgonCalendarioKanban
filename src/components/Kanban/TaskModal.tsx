@@ -21,6 +21,7 @@ interface TaskModalProps {
   defaultDueDate?: string;
   companies?: string[];
   onAddNewCompany?: (company: string) => void;
+  onOpenCompanyManager?: () => void;
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({
@@ -32,6 +33,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   defaultDueDate = '',
   companies = [],
   onAddNewCompany,
+  onOpenCompanyManager,
 }) => {
   const { user } = useAuth();
   const [title, setTitle] = useState('');
@@ -162,14 +164,26 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 Empresa / Cliente Contábil
               </span>
               {!isCreatingCompany && (
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingCompany(true)}
-                  className="text-[11px] font-semibold text-[#0d345e] hover:text-blue-900 hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  Nova Empresa
-                </button>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCompany(true)}
+                    className="text-[11px] font-semibold text-[#0d345e] hover:text-blue-900 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Nova Empresa
+                  </button>
+                  {onOpenCompanyManager && (
+                    <button
+                      type="button"
+                      onClick={onOpenCompanyManager}
+                      className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+                      title="Gerenciar e excluir empresas"
+                    >
+                      Gerenciar
+                    </button>
+                  )}
+                </div>
               )}
             </label>
 
