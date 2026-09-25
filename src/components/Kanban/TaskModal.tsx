@@ -17,7 +17,7 @@ import {
   Sparkles,
   Repeat
 } from 'lucide-react';
-import type { Task, TaskPriority, TaskStatus, ChecklistItem, RecurrenceType } from '../../types';
+import type { Task, TaskPriority, TaskStatus, ChecklistItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   formatDurationLong, 
@@ -83,7 +83,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [newStepText, setNewStepText] = useState('');
   const [isPaused, setIsPaused] = useState(false);
   const [pausedReason, setPausedReason] = useState('');
-  const [recurrence, setRecurrence] = useState<RecurrenceType>('none');
+  const [isMonthlyRecurring, setIsMonthlyRecurring] = useState(false);
   const [isCreatingCompany, setIsCreatingCompany] = useState(false);
   const [customCompanyName, setCustomCompanyName] = useState('');
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
@@ -102,16 +102,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setChecklist(editingTask.checklist ? [...editingTask.checklist] : []);
       setIsPaused(Boolean(editingTask.isPaused));
       setPausedReason(editingTask.pausedReason || '');
-
-      let initialRecurrence: RecurrenceType = 'none';
-      if (editingTask.recurrence) {
-        initialRecurrence = editingTask.recurrence;
-      } else if (editingTask.recurringGroupId?.startsWith('recur-week-')) {
-        initialRecurrence = 'weekly';
-      } else if (editingTask.isMonthlyRecurring || editingTask.recurringGroupId) {
-        initialRecurrence = 'monthly';
-      }
-      setRecurrence(initialRecurrence);
+      setIsMonthlyRecurring(Boolean(editingTask.isMonthlyRecurring || editingTask.recurrence === 'monthly' || editingTask.recurringGroupId));
     } else {
       setTitle('');
       setDescription('');
@@ -125,7 +116,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setChecklist([]);
       setIsPaused(false);
       setPausedReason('');
-      setRecurrence('none');
+      setIsMonthlyRecurring(false);
     }
     setNewStepText('');
     setIsCreatingCompany(false);
@@ -195,8 +186,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           : undefined,
         pausedAt: isPaused ? updatedPausedAt : undefined,
         totalPausedSeconds: updatedTotalPaused,
-        recurrence,
-        isMonthlyRecurring: recurrence === 'monthly',
+        isMonthlyRecurring,
+        recurrence: isMonthlyRecurring ? 'monthly' : 'none',
       },
       editingTask ? editingTask.id : undefined
     );
@@ -671,64 +662,22 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </div>
           </div>
 
-          {/* Recorrência Automática (Semanal ou Mensal) */}
-          <div className="p-3 bg-gradient-to-r from-amber-50/80 to-purple-50/50 border border-amber-200 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5 m-0 uppercase tracking-wider">
+          {/* Repetir todo mês (Recorrência Mensal Automática) */}
+          <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isMonthlyRecurring}
+                onChange={(e) => setIsMonthlyRecurring(e.target.checked)}
+                className="w-4 h-4 rounded text-[#0d345e] focus:ring-[#0d345e] cursor-pointer"
+              />
+              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <Repeat className="w-3.5 h-3.5 text-amber-600" />
-                <span>Repetição Automática</span>
-              </label>
-              {recurrence !== 'none' && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-white text-[#0d345e] border-amber-300">
-                  {recurrence === 'weekly' ? 'Semanal (12 semanas)' : 'Mensal (12 meses)'}
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-1.5">
-              <button
-                type="button"
-                onClick={() => setRecurrence('none')}
-                className={`py-1.5 px-2 rounded-lg text-xs font-bold border transition cursor-pointer text-center ${
-                  recurrence === 'none'
-                    ? 'bg-[#0d345e] text-white border-[#08223f] shadow-xs'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                Não repetir
-              </button>
-              <button
-                type="button"
-                onClick={() => setRecurrence('weekly')}
-                className={`py-1.5 px-2 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1 ${
-                  recurrence === 'weekly'
-                    ? 'bg-purple-700 text-white border-purple-800 shadow-xs'
-                    : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-50'
-                }`}
-              >
-                <Repeat className="w-3 h-3 text-purple-400" />
-                <span>Toda semana</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRecurrence('monthly')}
-                className={`py-1.5 px-2 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1 ${
-                  recurrence === 'monthly'
-                    ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
-                    : 'bg-white text-amber-900 border-amber-200 hover:bg-amber-50'
-                }`}
-              >
-                <Repeat className="w-3 h-3 text-amber-400" />
-                <span>Todo mês</span>
-              </button>
-            </div>
-
-            <p className="text-[10.5px] text-slate-600 m-0 leading-tight">
-              {recurrence === 'weekly'
-                ? 'Gera automaticamente a mesma demanda e checklist para as próximas 12 semanas (no mesmo dia da semana).'
-                : recurrence === 'monthly'
-                ? 'Gera automaticamente a mesma demanda e checklist para os próximos 12 meses (no mesmo dia do mês).'
-                : 'A tarefa será criada apenas para a data selecionada.'}
+                Repetir todo mês automaticamente (12 meses)
+              </span>
+            </label>
+            <p className="text-[10.5px] text-amber-800 m-0 pl-6 leading-tight">
+              Gera automaticamente a mesma demanda e etapas para os próximos 12 meses. Ideal para rotinas contábeis recorrentes de cada empresa (fechamento, DCTFWeb, folha).
             </p>
           </div>
 

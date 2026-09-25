@@ -668,9 +668,7 @@ export function App() {
           isMonthlyRecurring: !isWeekly,
           recurringGroupId,
         });
-        const [sqlNotes, sqlTasks] = await Promise.all([api.getNotes(), api.getTasks()]);
-        setNotes(sqlNotes);
-        setTasks(sqlTasks);
+        await syncWithDatabase();
       } catch (err) {
         console.error('Erro ao sincronizar anotação recorrente no SQL:', err);
       }
@@ -711,10 +709,12 @@ export function App() {
     }
 
     try {
-      await api.createNote(noteData);
-      const [sqlNotes, sqlTasks] = await Promise.all([api.getNotes(), api.getTasks()]);
-      setNotes(sqlNotes);
-      setTasks(sqlTasks);
+      await api.createNote({
+        ...noteData,
+        id: tempNoteId,
+        taskId: tempTaskId,
+      } as any);
+      await syncWithDatabase();
     } catch (err) {
       console.error('Erro ao salvar anotação no SQL:', err);
     }

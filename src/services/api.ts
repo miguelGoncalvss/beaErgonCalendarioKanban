@@ -205,19 +205,21 @@ export const api = {
           };
           newTasks.push(mapTaskToSupabase(t));
 
-          newNotes.push({
-            id: occurrenceNoteId,
-            task_id: occurrenceTaskId,
-            date: dateKeyStr,
-            title: taskData.title,
-            content: taskData.description || null,
-            category: 'geral',
-            company: taskData.company || null,
-            color: taskData.color || null,
-            is_monthly_recurring: !isWeekly,
-            recurring_group_id: recurringGroupId,
-            created_at: new Date().toISOString(),
-          });
+          newNotes.push(
+            mapNoteToSupabase({
+              id: occurrenceNoteId,
+              taskId: occurrenceTaskId,
+              date: dateKeyStr,
+              title: taskData.title,
+              content: taskData.description || null,
+              category: 'geral',
+              company: taskData.company || null,
+              color: taskData.color || null,
+              isMonthlyRecurring: !isWeekly,
+              recurringGroupId,
+              createdAt: new Date().toISOString(),
+            })
+          );
         }
 
         const { error: tErr } = await supabase.from('tasks').insert(newTasks);
@@ -525,22 +527,24 @@ export const api = {
             );
           }
 
-          newNotes.push({
-            id: occurrenceNoteId,
-            task_id: occurrenceTaskId || null,
-            date: dateKeyStr,
-            title: noteData.title,
-            content: noteData.content || null,
-            category: noteData.category,
-            company: noteData.company || null,
-            color: noteData.color || null,
-            time: noteData.time || null,
-            is_completed: false,
-            recurrence: isWeekly ? 'weekly' : 'monthly',
-            is_monthly_recurring: !isWeekly,
-            recurring_group_id: recurringGroupId,
-            created_at: new Date().toISOString(),
-          });
+          newNotes.push(
+            mapNoteToSupabase({
+              id: occurrenceNoteId,
+              taskId: occurrenceTaskId || null,
+              date: dateKeyStr,
+              title: noteData.title,
+              content: noteData.content || null,
+              category: noteData.category,
+              company: noteData.company || null,
+              color: noteData.color || null,
+              time: noteData.time || null,
+              isCompleted: false,
+              recurrence: isWeekly ? 'weekly' : 'monthly',
+              isMonthlyRecurring: !isWeekly,
+              recurringGroupId,
+              createdAt: new Date().toISOString(),
+            })
+          );
         }
 
         if (newTasks.length > 0) {
@@ -558,8 +562,8 @@ export const api = {
         return newNotes.map(mapNoteFromSupabase);
       }
 
-      const noteId = `note-${Date.now()}`;
-      const taskId = shouldCreateTask ? `task-${Date.now()}` : undefined;
+      const noteId = (noteData as any).id || `note-${Date.now()}`;
+      const taskId = shouldCreateTask ? ((noteData as any).taskId || `task-${Date.now()}`) : undefined;
 
       if (shouldCreateTask && taskId) {
         // Cria a tarefa correspondente no Kanban
