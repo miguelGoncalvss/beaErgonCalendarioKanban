@@ -66,6 +66,7 @@ export interface DayNote {
   createdAt: string;
   isMonthlyRecurring?: boolean;
   recurringGroupId?: string;
+  sendToKanban?: boolean; // Se deve gerar/manter tarefa correspondente no Kanban
 }
 
 export interface ColumnDefinition {

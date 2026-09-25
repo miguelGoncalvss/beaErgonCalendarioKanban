@@ -547,11 +547,13 @@ export function App() {
     }
   };
 
-  // Note Actions: Everything created in the calendar goes as "A Fazer" in Kanban!
+  // Note Actions: Lembretes e Demandas do Calendário (com opção de enviar ou não para o Kanban)
   const handleAddNote = async (noteData: Omit<DayNote, 'id' | 'createdAt'>) => {
     let priority: TaskPriority = 'medium';
     if (noteData.category === 'urgente') priority = 'urgent';
     else if (noteData.category === 'ideia') priority = 'low';
+
+    const shouldCreateTask = noteData.sendToKanban !== false;
 
     if (noteData.isMonthlyRecurring) {
       const baseDate = parseDateKey(noteData.date);
@@ -568,7 +570,7 @@ export function App() {
         const occurrenceDate = new Date(targetYear, targetMonth, validDay);
         const dateKeyStr = formatDateKey(occurrenceDate);
 
-        const occurrenceTaskId = `task-${Date.now()}-${i}`;
+        const occurrenceTaskId = shouldCreateTask ? `task-${Date.now()}-${i}` : undefined;
         const occurrenceNoteId = `note-${Date.now()}-${i}`;
 
         newNotes.push({
@@ -581,22 +583,24 @@ export function App() {
           createdAt: new Date().toISOString(),
         });
 
-        newTasks.push({
-          id: occurrenceTaskId,
-          title: noteData.title,
-          description: noteData.content,
-          company: noteData.company,
-          status: 'todo',
-          priority,
-          dueDate: dateKeyStr,
-          dueTime: noteData.time || undefined,
-          assignee: 'Bea',
-          checklist: [],
-          isMonthlyRecurring: true,
-          recurringGroupId,
-          color: noteData.color,
-          createdAt: new Date().toISOString(),
-        });
+        if (shouldCreateTask && occurrenceTaskId) {
+          newTasks.push({
+            id: occurrenceTaskId,
+            title: noteData.title,
+            description: noteData.content,
+            company: noteData.company,
+            status: 'todo',
+            priority,
+            dueDate: dateKeyStr,
+            dueTime: noteData.time || undefined,
+            assignee: 'Bea',
+            checklist: [],
+            isMonthlyRecurring: true,
+            recurringGroupId,
+            color: noteData.color,
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
 
       if (noteData.company) {
@@ -604,7 +608,9 @@ export function App() {
       }
 
       setNotes((prev) => [...newNotes, ...prev]);
-      setTasks((prev) => [...newTasks, ...prev]);
+      if (newTasks.length > 0) {
+        setTasks((prev) => [...newTasks, ...prev]);
+      }
 
       try {
         await api.createNote(noteData);
@@ -621,7 +627,7 @@ export function App() {
       handleAddNewCompany(noteData.company);
     }
 
-    const tempTaskId = `task-${Date.now()}`;
+    const tempTaskId = shouldCreateTask ? `task-${Date.now()}` : undefined;
     const tempNoteId = `note-${Date.now()}`;
 
     const newNote: DayNote = {
@@ -632,21 +638,23 @@ export function App() {
     };
     setNotes((prev) => [newNote, ...prev]);
 
-    const newTask: Task = {
-      id: tempTaskId,
-      title: noteData.title,
-      description: noteData.content,
-      company: noteData.company,
-      status: 'todo',
-      priority,
-      dueDate: noteData.date,
-      dueTime: noteData.time || undefined,
-      assignee: 'Bea',
-      checklist: [],
-      color: noteData.color,
-      createdAt: new Date().toISOString(),
-    };
-    setTasks((prev) => [newTask, ...prev]);
+    if (shouldCreateTask && tempTaskId) {
+      const newTask: Task = {
+        id: tempTaskId,
+        title: noteData.title,
+        description: noteData.content,
+        company: noteData.company,
+        status: 'todo',
+        priority,
+        dueDate: noteData.date,
+        dueTime: noteData.time || undefined,
+        assignee: 'Bea',
+        checklist: [],
+        color: noteData.color,
+        createdAt: new Date().toISOString(),
+      };
+      setTasks((prev) => [newTask, ...prev]);
+    }
 
     try {
       await api.createNote(noteData);
@@ -726,19 +734,52 @@ export function App() {
   };
 
   const handleUpdateNote = async (updatedNote: DayNote) => {
-    setNotes((prev) => prev.map((n) => (n.id === updatedNote.id ? updatedNote : n)));
-    if (updatedNote.taskId) {
+    let finalNote = { ...updatedNote };
+
+    if (updatedNote.sendToKanban === true && !updatedNote.taskId) {
+      const newTaskId = `task-${Date.now()}`;
+      finalNote.taskId = newTaskId;
+
+      let priority: TaskPriority = 'medium';
+      if (updatedNote.category === 'urgente') priority = 'urgent';
+      else if (updatedNote.category === 'ideia') priority = 'low';
+
+      const newTask: Task = {
+        id: newTaskId,
+        title: updatedNote.title,
+        description: updatedNote.content,
+        company: updatedNote.company,
+        status: 'todo',
+        priority,
+        dueDate: updatedNote.date,
+        dueTime: updatedNote.time,
+        color: updatedNote.color,
+        assignee: 'Bea',
+        checklist: [],
+        createdAt: new Date().toISOString(),
+      };
+      setTasks((prev) => [newTask, ...prev]);
+    } else if (updatedNote.sendToKanban === false && updatedNote.taskId) {
+      const oldTaskId = updatedNote.taskId;
+      finalNote.taskId = undefined;
+      setTasks((prev) => prev.filter((t) => t.id !== oldTaskId));
+      try {
+        await api.deleteTask(oldTaskId, false);
+      } catch (err) {
+        console.error('Erro ao desvincular tarefa do Kanban:', err);
+      }
+    } else if (finalNote.taskId) {
       setTasks((prev) =>
         prev.map((t) =>
-          t.id === updatedNote.taskId
+          t.id === finalNote.taskId
             ? {
                 ...t,
-                title: updatedNote.title,
-                description: updatedNote.content,
-                company: updatedNote.company,
-                dueDate: updatedNote.date,
-                dueTime: updatedNote.time,
-                color: updatedNote.color,
+                title: finalNote.title,
+                description: finalNote.content,
+                company: finalNote.company,
+                dueDate: finalNote.date,
+                dueTime: finalNote.time,
+                color: finalNote.color,
                 updatedAt: new Date().toISOString(),
               }
             : t
@@ -746,8 +787,10 @@ export function App() {
       );
     }
 
+    setNotes((prev) => prev.map((n) => (n.id === finalNote.id ? finalNote : n)));
+
     try {
-      await api.updateNote(updatedNote);
+      await api.updateNote(finalNote);
       await syncWithDatabase();
     } catch (err) {
       console.error('Erro ao atualizar compromisso:', err);

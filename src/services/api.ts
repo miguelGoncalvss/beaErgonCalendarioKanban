@@ -443,6 +443,8 @@ export const api = {
         ? noteData.category.charAt(0).toUpperCase() + noteData.category.slice(1)
         : 'Calendário';
 
+      const shouldCreateTask = noteData.sendToKanban !== false;
+
       if (noteData.isMonthlyRecurring) {
         const baseDate = new Date(noteData.date + 'T00:00:00');
         const targetDay = baseDate.getDate();
@@ -458,30 +460,34 @@ export const api = {
           const pad = (n: number) => String(n).padStart(2, '0');
           const dateKeyStr = `${targetYear}-${pad(targetMonth + 1)}-${pad(validDay)}`;
 
-          const occurrenceTaskId = `task-${Date.now()}-${i}`;
+          const occurrenceTaskId = shouldCreateTask ? `task-${Date.now()}-${i}` : undefined;
           const occurrenceNoteId = `note-${Date.now()}-${i}`;
 
-          newTasks.push(
-            mapTaskToSupabase({
-              id: occurrenceTaskId,
-              title: noteData.title,
-              description: noteData.content,
-              company: noteData.company,
-              status: 'todo',
-              priority,
-              dueDate: dateKeyStr,
-              dueTime: noteData.time || undefined,
-              tags: [categoryTag, 'Recorrente'],
-              isMonthlyRecurring: true,
-              recurringGroupId,
-              color: noteData.color,
-              createdAt: new Date().toISOString(),
-            })
-          );
+          if (shouldCreateTask && occurrenceTaskId) {
+            newTasks.push(
+              mapTaskToSupabase({
+                id: occurrenceTaskId,
+                title: noteData.title,
+                description: noteData.content,
+                company: noteData.company,
+                status: 'todo',
+                priority,
+                dueDate: dateKeyStr,
+                dueTime: noteData.time || undefined,
+                tags: [categoryTag, 'Recorrente'],
+                isMonthlyRecurring: true,
+                recurringGroupId,
+                color: noteData.color,
+                assignee: 'Bea',
+                checklist: [],
+                createdAt: new Date().toISOString(),
+              })
+            );
+          }
 
           newNotes.push({
             id: occurrenceNoteId,
-            task_id: occurrenceTaskId,
+            task_id: occurrenceTaskId || null,
             date: dateKeyStr,
             title: noteData.title,
             content: noteData.content || null,
@@ -496,8 +502,10 @@ export const api = {
           });
         }
 
-        const { error: tErr } = await supabase.from('tasks').insert(newTasks);
-        if (tErr) throw tErr;
+        if (newTasks.length > 0) {
+          const { error: tErr } = await supabase.from('tasks').insert(newTasks);
+          if (tErr) throw tErr;
+        }
 
         const { error: nErr } = await supabase.from('day_notes').insert(newNotes);
         if (nErr) throw nErr;
@@ -509,31 +517,35 @@ export const api = {
         return newNotes.map(mapNoteFromSupabase);
       }
 
-      const taskId = `task-${Date.now()}`;
       const noteId = `note-${Date.now()}`;
+      const taskId = shouldCreateTask ? `task-${Date.now()}` : undefined;
 
-      // Cria a tarefa correspondente no Kanban
-      const newTask = mapTaskToSupabase({
-        id: taskId,
-        title: noteData.title,
-        description: noteData.content,
-        company: noteData.company,
-        color: noteData.color,
-        status: 'todo',
-        priority,
-        dueDate: noteData.date,
-        dueTime: noteData.time || undefined,
-        tags: [categoryTag],
-        createdAt: new Date().toISOString(),
-      });
-      const { error: tErr } = await supabase.from('tasks').insert(newTask);
-      if (tErr) throw tErr;
+      if (shouldCreateTask && taskId) {
+        // Cria a tarefa correspondente no Kanban
+        const newTask = mapTaskToSupabase({
+          id: taskId,
+          title: noteData.title,
+          description: noteData.content,
+          company: noteData.company,
+          color: noteData.color,
+          status: 'todo',
+          priority,
+          dueDate: noteData.date,
+          dueTime: noteData.time || undefined,
+          tags: [categoryTag],
+          assignee: 'Bea',
+          checklist: [],
+          createdAt: new Date().toISOString(),
+        });
+        const { error: tErr } = await supabase.from('tasks').insert(newTask);
+        if (tErr) throw tErr;
+      }
 
       // Cria o registro da anotação no calendário
       const newNote = mapNoteToSupabase({
         ...noteData,
         id: noteId,
-        taskId,
+        taskId: taskId || null,
         createdAt: new Date().toISOString(),
       });
       const { error: nErr } = await supabase.from('day_notes').insert(newNote);
@@ -562,7 +574,42 @@ export const api = {
 
   async updateNote(note: DayNote): Promise<DayNote> {
     if (isSupabaseConfigured()) {
-      const mapped = mapNoteToSupabase(note);
+      let finalTaskId = note.taskId;
+
+      if (note.sendToKanban === true && !note.taskId) {
+        finalTaskId = `task-${Date.now()}`;
+        let priority = 'medium';
+        if (note.category === 'urgente') priority = 'urgent';
+        else if (note.category === 'ideia') priority = 'low';
+
+        const categoryTag = note.category
+          ? note.category.charAt(0).toUpperCase() + note.category.slice(1)
+          : 'Calendário';
+
+        await supabase.from('tasks').insert(
+          mapTaskToSupabase({
+            id: finalTaskId,
+            title: note.title,
+            description: note.content,
+            company: note.company,
+            color: note.color,
+            status: 'todo',
+            priority,
+            dueDate: note.date,
+            dueTime: note.time,
+            tags: [categoryTag],
+            assignee: 'Bea',
+            checklist: [],
+            createdAt: new Date().toISOString(),
+          })
+        );
+      } else if (note.sendToKanban === false && note.taskId) {
+        await supabase.from('tasks').delete().eq('id', note.taskId);
+        finalTaskId = undefined;
+      }
+
+      const noteToSave = { ...note, taskId: finalTaskId };
+      const mapped = mapNoteToSupabase(noteToSave);
       const { error } = await supabase
         .from('day_notes')
         .update(mapped)
@@ -570,7 +617,7 @@ export const api = {
       if (error) throw error;
 
       // Se tiver tarefa vinculada, atualiza a tarefa no Kanban
-      if (note.taskId) {
+      if (finalTaskId) {
         let priority = 'medium';
         if (note.category === 'urgente') priority = 'urgent';
         else if (note.category === 'ideia') priority = 'low';
@@ -592,14 +639,14 @@ export const api = {
             tags: [categoryTag],
             updated_at: new Date().toISOString(),
           })
-          .eq('id', note.taskId);
+          .eq('id', finalTaskId);
       }
 
       if (note.company) {
         await api.createCompany(note.company);
       }
 
-      return note;
+      return noteToSave;
     }
 
     const res = await fetch(`${API_BASE}/notes/${note.id}`, {

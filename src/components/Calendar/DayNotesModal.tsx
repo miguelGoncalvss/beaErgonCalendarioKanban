@@ -14,7 +14,8 @@ import {
   CalendarCheck,
   AlertCircle,
   Lightbulb,
-  Bell
+  Bell,
+  LayoutGrid
 } from 'lucide-react';
 import type { DayNote, NoteCategory, Task } from '../../types';
 import { formatFriendlyDate } from '../../utils/dateUtils';
@@ -102,18 +103,30 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
   const [isCreatingCompany, setIsCreatingCompany] = useState(false);
   const [customCompanyName, setCustomCompanyName] = useState('');
   const [repeatMonthly, setRepeatMonthly] = useState(false);
+  const [sendToKanban, setSendToKanban] = useState(true);
   const [showAddForm, setShowAddForm] = useState(initialShowAddForm);
   const [editingNote, setEditingNote] = useState<DayNote | null>(null);
+  const [editSendToKanban, setEditSendToKanban] = useState(false);
 
   React.useEffect(() => {
     if (isOpen) {
       setShowAddForm(initialShowAddForm);
       setEditingNote(null);
       setNewColor(undefined);
+      setSendToKanban(newCategory !== 'lembrete');
     }
   }, [isOpen, initialShowAddForm]);
 
   if (!isOpen) return null;
+
+  const handleCategorySelect = (cat: NoteCategory) => {
+    setNewCategory(cat);
+    if (cat === 'lembrete') {
+      setSendToKanban(false);
+    } else if (cat === 'geral' || cat === 'urgente') {
+      setSendToKanban(true);
+    }
+  };
 
   const handleCreateNote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +142,7 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
       time: newTime || undefined,
       isCompleted: false,
       isMonthlyRecurring: repeatMonthly,
+      sendToKanban,
     });
 
     setNewTitle('');
@@ -140,11 +154,13 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
     setIsCreatingCompany(false);
     setCustomCompanyName('');
     setRepeatMonthly(false);
+    setSendToKanban(true);
     setShowAddForm(false);
   };
 
   const handleStartEdit = (note: DayNote) => {
     setEditingNote({ ...note });
+    setEditSendToKanban(Boolean(note.taskId));
     setShowAddForm(false);
   };
 
@@ -152,7 +168,7 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
     e.preventDefault();
     if (!editingNote || !editingNote.title.trim()) return;
 
-    onUpdateNote?.(editingNote);
+    onUpdateNote?.({ ...editingNote, sendToKanban: editSendToKanban });
     setEditingNote(null);
   };
 
@@ -288,6 +304,21 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                   </select>
                 </div>
 
+                <div className="flex items-center gap-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none bg-white px-2.5 py-1 rounded-md border border-slate-300 hover:border-[#0d345e] transition" title="Manter ou desvincular do quadro Kanban">
+                    <input
+                      type="checkbox"
+                      checked={editSendToKanban}
+                      onChange={(e) => setEditSendToKanban(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-[#0d345e] focus:ring-[#0d345e] cursor-pointer"
+                    />
+                    <LayoutGrid className={`w-3.5 h-3.5 ${editSendToKanban ? 'text-[#0d345e]' : 'text-slate-400'}`} />
+                    <span className={editSendToKanban ? 'text-[#0d345e] font-bold' : 'text-slate-600'}>
+                      {editSendToKanban ? 'No Kanban' : 'Apenas Calendário'}
+                    </span>
+                  </label>
+                </div>
+
                 <div className="ml-auto flex items-center gap-2">
                   <button
                     type="button"
@@ -316,9 +347,15 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                     <ListTodo className="w-4 h-4 text-amber-500" />
                     Novo Agendamento / Afazer para este dia
                   </span>
-                  <span className="text-[10px] font-bold bg-[#08223f] text-amber-300 px-2.5 py-0.5 rounded-full border border-blue-900/80">
-                    Sincronizado com o Kanban
-                  </span>
+                  {sendToKanban ? (
+                    <span className="text-[10px] font-bold bg-[#08223f] text-amber-300 px-2.5 py-0.5 rounded-full border border-blue-900/80">
+                      Sincronizado com o Kanban
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold bg-sky-100 text-sky-800 px-2.5 py-0.5 rounded-full border border-sky-300">
+                      Apenas no Calendário (Lembrete)
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -339,7 +376,7 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                     <button
                       key={cat}
                       type="button"
-                      onClick={() => setNewCategory(cat)}
+                      onClick={() => handleCategorySelect(cat)}
                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer border ${
                         isSelected 
                           ? 'bg-[#0d345e] text-amber-300 border-amber-400 shadow-xs' 
@@ -511,6 +548,25 @@ export const DayNotesModal: React.FC<DayNotesModalProps> = ({
                     />
                     <Repeat className={`w-3.5 h-3.5 ${repeatMonthly ? 'text-[#0d345e]' : 'text-slate-400'}`} />
                     <span>Repetir todo mês no dia {dayNumber}?</span>
+                  </label>
+                </div>
+
+                {/* Enviar para o Kanban Checkbox */}
+                <div className="flex items-center gap-2">
+                  <label 
+                    className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none bg-white px-2.5 py-1 rounded-md border border-slate-300 hover:border-[#0d345e]/60 transition"
+                    title="Desmarque se for apenas um lembrete no calendário que não deve poluir o Kanban"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={sendToKanban}
+                      onChange={(e) => setSendToKanban(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-[#0d345e] focus:ring-[#0d345e] border-slate-300 cursor-pointer"
+                    />
+                    <LayoutGrid className={`w-3.5 h-3.5 ${sendToKanban ? 'text-[#0d345e]' : 'text-slate-400'}`} />
+                    <span className={sendToKanban ? 'text-[#0d345e] font-bold' : 'text-slate-600'}>
+                      {sendToKanban ? 'Enviar p/ Kanban' : 'Apenas Lembrete'}
+                    </span>
                   </label>
                 </div>
 

@@ -282,6 +282,8 @@ app.post('/api/notes', authenticateToken, (req: any, res) => {
       ? noteData.category.charAt(0).toUpperCase() + noteData.category.slice(1)
       : 'Calendário';
 
+    const shouldCreateTask = noteData.sendToKanban !== false;
+
     if (noteData.isMonthlyRecurring) {
       const baseDate = new Date(noteData.date + 'T00:00:00');
       const targetDay = baseDate.getDate();
@@ -296,33 +298,34 @@ app.post('/api/notes', authenticateToken, (req: any, res) => {
         const pad = (n: number) => String(n).padStart(2, '0');
         const dateKeyStr = `${targetYear}-${pad(targetMonth + 1)}-${pad(validDay)}`;
 
-        const taskId = `task-${Date.now()}-${i}`;
+        const taskId = shouldCreateTask ? `task-${Date.now()}-${i}` : undefined;
         const noteId = `note-${Date.now()}-${i}`;
 
-        // Cria tarefa Kanban vinculada como "A Fazer" PRIMEIRO (para foreign key)
-        createTask(
-          {
-            id: taskId,
-            title: noteData.title,
-            description: noteData.content,
-            company: noteData.company,
-            color: noteData.color || null,
-            status: 'todo',
-            priority,
-            dueDate: dateKeyStr,
-            dueTime: noteData.time || null,
-            tags: [categoryTag, 'Recorrente'],
-            isMonthlyRecurring: true,
-            recurringGroupId,
-            createdAt: new Date().toISOString(),
-          },
-          userId
-        );
+        if (shouldCreateTask && taskId) {
+          createTask(
+            {
+              id: taskId,
+              title: noteData.title,
+              description: noteData.content,
+              company: noteData.company,
+              color: noteData.color || null,
+              status: 'todo',
+              priority,
+              dueDate: dateKeyStr,
+              dueTime: noteData.time || null,
+              tags: [categoryTag, 'Recorrente'],
+              isMonthlyRecurring: true,
+              recurringGroupId,
+              createdAt: new Date().toISOString(),
+            },
+            userId
+          );
+        }
 
         const n = {
           ...noteData,
           id: noteId,
-          taskId,
+          taskId: taskId || null,
           date: dateKeyStr,
           isMonthlyRecurring: true,
           recurringGroupId,
@@ -339,29 +342,30 @@ app.post('/api/notes', authenticateToken, (req: any, res) => {
       return res.status(201).json(createdNotes);
     }
 
-    const taskId = `task-${Date.now()}`;
-    // Cria a tarefa no Kanban vinculada como "A Fazer" PRIMEIRO (para foreign key)
-    createTask(
-      {
-        id: taskId,
-        title: noteData.title,
-        description: noteData.content,
-        company: noteData.company,
-        color: noteData.color || null,
-        status: 'todo',
-        priority,
-        dueDate: noteData.date,
-        dueTime: noteData.time || null,
-        tags: [categoryTag],
-        createdAt: new Date().toISOString(),
-      },
-      userId
-    );
+    const taskId = shouldCreateTask ? `task-${Date.now()}` : undefined;
+    if (shouldCreateTask && taskId) {
+      createTask(
+        {
+          id: taskId,
+          title: noteData.title,
+          description: noteData.content,
+          company: noteData.company,
+          color: noteData.color || null,
+          status: 'todo',
+          priority,
+          dueDate: noteData.date,
+          dueTime: noteData.time || null,
+          tags: [categoryTag],
+          createdAt: new Date().toISOString(),
+        },
+        userId
+      );
+    }
 
     const newNote = {
       ...noteData,
       id: `note-${Date.now()}`,
-      taskId,
+      taskId: taskId || null,
       createdAt: new Date().toISOString(),
     };
     createNote(newNote, userId);
