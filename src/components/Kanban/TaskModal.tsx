@@ -24,7 +24,10 @@ import {
   getLiveKanbanDurationSeconds, 
   getLiveDelayedDurationSeconds,
   getLiveTodoDurationSeconds,
-  getLiveInProgressDurationSeconds
+  getLiveInProgressDurationSeconds,
+  calculateBusinessSeconds,
+  calculateElapsedSeconds,
+  getChecklistItemTiming
 } from '../../utils/timeMetrics';
 import { TaskAuditModal } from './TaskAuditModal';
 import { ColorPicker } from '../Common/ColorPicker';
@@ -131,16 +134,39 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       text: text.trim(),
       completed: false,
+      createdAt: new Date().toISOString(),
     };
     setChecklist((prev) => [...prev, newItem]);
     setNewStepText('');
   };
 
   const handleToggleStep = (id: string) => {
+    const nowIso = new Date().toISOString();
     setChecklist((prev) =>
-      prev.map((step) =>
-        step.id === id ? { ...step, completed: !step.completed } : step
-      )
+      prev.map((step) => {
+        if (step.id !== id) return step;
+        const willComplete = !step.completed;
+        if (willComplete) {
+          const itemCreated = step.createdAt || (editingTask ? editingTask.createdAt : nowIso);
+          const elapsed = calculateElapsedSeconds(itemCreated, nowIso);
+          const business = calculateBusinessSeconds(itemCreated, nowIso);
+          return {
+            ...step,
+            completed: true,
+            completedAt: nowIso,
+            elapsedSeconds: elapsed,
+            businessSeconds: business,
+          };
+        } else {
+          return {
+            ...step,
+            completed: false,
+            completedAt: undefined,
+            elapsedSeconds: undefined,
+            businessSeconds: undefined,
+          };
+        }
+      })
     );
   };
 
@@ -453,42 +479,72 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </div>
 
             {/* Lista de etapas cadastradas */}
-            <div className="space-y-1.5 max-h-44 overflow-y-auto pt-1">
-              {checklist.map((step, index) => (
-                <div
-                  key={step.id}
-                  className={`flex items-center justify-between p-2 rounded-lg border text-xs transition ${
-                    step.completed
-                      ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
-                      : 'bg-white border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStep(step.id)}
-                    className="flex items-center gap-2 text-left flex-1 cursor-pointer min-w-0"
-                  >
-                    {step.completed ? (
-                      <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <Square className="w-4 h-4 text-slate-400 shrink-0" />
-                    )}
-                    <span className={`truncate font-medium ${step.completed ? 'line-through text-slate-400' : ''}`}>
-                      <strong className="text-slate-500 mr-1.5 font-mono">{index + 1}.</strong>
-                      {step.text}
-                    </span>
-                  </button>
+            <div className="space-y-1.5 max-h-52 overflow-y-auto pt-1">
+              {checklist.map((step, index) => {
+                const timing = getChecklistItemTiming(step, editingTask?.createdAt);
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteStep(step.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer shrink-0 ml-1.5"
-                    title="Remover etapa"
+                return (
+                  <div
+                    key={step.id}
+                    className={`flex items-start justify-between p-2.5 rounded-lg border text-xs transition ${
+                      step.completed
+                        ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                        : 'bg-white border-slate-200 text-slate-700'
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStep(step.id)}
+                      className="flex items-start gap-2.5 text-left flex-1 cursor-pointer min-w-0"
+                    >
+                      {step.completed ? (
+                        <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className={`block font-medium ${step.completed ? 'line-through text-slate-500' : 'text-slate-800'}`}>
+                          <strong className="text-slate-500 mr-1.5 font-mono">{index + 1}.</strong>
+                          {step.text}
+                        </span>
+
+                        {/* Indicadores de Tempo Útil e Corrido */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px]">
+                          {step.completed ? (
+                            <>
+                              <span className="font-semibold text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                <span>💼 Útil: <strong>{timing.formattedBusiness}</strong></span>
+                              </span>
+                              <span className="font-medium text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                <span>⏱️ Corrido: <strong>{timing.formattedElapsed}</strong></span>
+                              </span>
+                              {timing.completedDateStr && (
+                                <span className="text-slate-400 text-[9.5px]">
+                                  • {timing.completedDateStr}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-slate-500 text-[10px] flex items-center gap-1">
+                              <span>⏱️ Em aberto:</span>
+                              <strong className="text-[#0d345e]">{timing.formattedBusiness}</strong> útil ({timing.formattedElapsed} corrido)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteStep(step.id)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer shrink-0 ml-1.5 mt-0.5"
+                      title="Remover etapa"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
 
               {checklist.length === 0 && (
                 <p className="text-[11px] text-slate-400 text-center py-2 m-0 italic">

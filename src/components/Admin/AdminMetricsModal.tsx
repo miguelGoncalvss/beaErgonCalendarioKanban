@@ -6,14 +6,17 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   Building2, 
-  Filter
+  Filter,
+  Briefcase
 } from 'lucide-react';
 import type { Task } from '../../types';
 import { 
   formatDuration, 
+  formatBusinessDuration,
   formatDurationLong, 
   getLiveKanbanDurationSeconds, 
-  getLiveDelayedDurationSeconds 
+  getLiveDelayedDurationSeconds,
+  calculateBusinessSeconds
 } from '../../utils/timeMetrics';
 interface AdminMetricsModalProps {
   isOpen: boolean;
@@ -51,6 +54,12 @@ export const AdminMetricsModal: React.FC<AdminMetricsModalProps> = ({
   );
   const avgCompletionSecs = completedTasks.length > 0 ? Math.round(totalCompletedSecs / completedTasks.length) : 0;
 
+  const totalCompletedBusinessSecs = completedTasks.reduce(
+    (acc, t) => acc + calculateBusinessSeconds(t.createdAt, t.completedAt || new Date().toISOString()),
+    0
+  );
+  const avgCompletionBusinessSecs = completedTasks.length > 0 ? Math.round(totalCompletedBusinessSecs / completedTasks.length) : 0;
+
   // Média de tempo em atraso
   const totalDelaySecs = filteredTasks.reduce(
     (acc, t) => acc + getLiveDelayedDurationSeconds(t),
@@ -82,7 +91,7 @@ export const AdminMetricsModal: React.FC<AdminMetricsModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 m-0">
-                Auditoria de tempo no quadro até a conclusão e tempo acumulado em atraso
+                Auditoria de tempo útil comercial (08h às 17h, Seg-Sex) e tempo corrido total
               </p>
             </div>
           </div>
@@ -100,15 +109,23 @@ export const AdminMetricsModal: React.FC<AdminMetricsModalProps> = ({
           {/* Cards de Métricas Principais (KPIs) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             
-            <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 flex flex-col justify-between space-y-2">
               <div className="flex items-center justify-between text-[#0d345e] mb-1">
                 <span className="text-xs font-bold uppercase tracking-wider">Tempo Médio até Conclusão</span>
                 <Clock className="w-4 h-4" />
               </div>
-              <div className="text-2xl font-extrabold text-[#0d345e] mt-1">
-                {avgCompletionSecs > 0 ? formatDuration(avgCompletionSecs) : 'N/D'}
+              <div>
+                <div className="text-xl font-black text-[#0d345e] flex items-center gap-1.5">
+                  <Briefcase className="w-4 h-4 text-amber-600" />
+                  <span>{avgCompletionBusinessSecs > 0 ? `${formatBusinessDuration(avgCompletionBusinessSecs)} útil` : 'N/D'}</span>
+                </div>
+                {avgCompletionSecs > 0 && (
+                  <div className="text-xs text-slate-500 font-semibold mt-1">
+                    ⏱️ {formatDuration(avgCompletionSecs)} corrido (24h/7d)
+                  </div>
+                )}
               </div>
-              <p className="text-[11px] text-blue-900/80 mt-1">
+              <p className="text-[11px] text-blue-900/80 m-0">
                 {completedTasks.length} {completedTasks.length === 1 ? 'tarefa concluída' : 'tarefas concluídas'}
               </p>
             </div>
@@ -246,12 +263,16 @@ export const AdminMetricsModal: React.FC<AdminMetricsModalProps> = ({
                           </td>
 
                           <td className="px-3 py-2.5 font-medium text-slate-700">
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              <span title={formatDurationLong(kanbanSecs)}>
-                                {formatDuration(kanbanSecs)}
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-[#0d345e] flex items-center gap-1 text-xs">
+                                <Briefcase className="w-2.5 h-2.5 text-amber-600" />
+                                {formatBusinessDuration(calculateBusinessSeconds(task.createdAt, task.completedAt || new Date().toISOString()))} útil
                               </span>
-                              {isDone && <span className="text-[9px] text-emerald-600 font-semibold">(final)</span>}
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                                <Clock className="w-2.5 h-2.5 text-slate-400" />
+                                <span>{formatDuration(kanbanSecs)} corrido</span>
+                                {isDone && <span className="text-[9px] text-emerald-600 font-semibold">(final)</span>}
+                              </div>
                             </div>
                           </td>
 

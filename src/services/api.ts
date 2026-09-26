@@ -1,5 +1,6 @@
 import type { Task, DayNote, TaskStatus } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { calculateBusinessSeconds } from '../utils/timeMetrics';
 
 const API_BASE = '/api';
 
@@ -312,6 +313,7 @@ export const api = {
         ? new Date(current.stage_entered_at).getTime()
         : (current.created_at ? new Date(current.created_at).getTime() : now.getTime());
       const elapsed = Math.max(0, Math.floor((now.getTime() - stageStart) / 1000));
+      const business = calculateBusinessSeconds(stageStart, now);
 
       let timeInTodoSeconds = current.time_in_todo_seconds || 0;
       let timeInProgressSeconds = current.time_in_progress_seconds || 0;
@@ -351,6 +353,7 @@ export const api = {
         if (!last.leftAt) {
           last.leftAt = nowIso;
           last.durationSeconds = elapsed;
+          last.businessSeconds = business;
           history[history.length - 1] = last;
         }
       } else {
@@ -359,6 +362,7 @@ export const api = {
           enteredAt: current.stage_entered_at || current.created_at,
           leftAt: nowIso,
           durationSeconds: elapsed,
+          businessSeconds: business,
         });
       }
 

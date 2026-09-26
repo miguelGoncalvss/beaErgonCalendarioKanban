@@ -22,6 +22,7 @@ import { DayNotesModal } from './components/Calendar/DayNotesModal';
 import { AdminMetricsModal } from './components/Admin/AdminMetricsModal';
 import { CompanyManagerModal } from './components/Common/CompanyManagerModal';
 import { formatDateKey, parseDateKey } from './utils/dateUtils';
+import { calculateBusinessSeconds } from './utils/timeMetrics';
 
 export function App() {
   const [tasks, setTasks] = useState<Task[]>(() => loadTasksFromStorage());
@@ -186,6 +187,10 @@ export function App() {
           ...step,
           id: `step-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
           completed: i === 0 ? Boolean(step.completed) : false,
+          createdAt: step.createdAt || new Date().toISOString(),
+          completedAt: i === 0 ? step.completedAt : undefined,
+          elapsedSeconds: i === 0 ? step.elapsedSeconds : undefined,
+          businessSeconds: i === 0 ? step.businessSeconds : undefined,
         }));
 
         newTasks.push({
@@ -339,6 +344,10 @@ export function App() {
           ...step,
           id: `step-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
           completed: false,
+          createdAt: new Date().toISOString(),
+          completedAt: undefined,
+          elapsedSeconds: undefined,
+          businessSeconds: undefined,
         }));
 
         futureTasks.push({
@@ -512,6 +521,7 @@ export function App() {
           ? new Date(t.stageEnteredAt).getTime() 
           : (t.createdAt ? new Date(t.createdAt).getTime() : now.getTime());
         const elapsed = Math.max(0, Math.floor((now.getTime() - stageStart) / 1000));
+        const business = calculateBusinessSeconds(stageStart, now);
 
         let timeInTodoSeconds = t.timeInTodoSeconds || 0;
         let timeInProgressSeconds = t.timeInProgressSeconds || 0;
@@ -531,6 +541,7 @@ export function App() {
           if (!last.leftAt) {
             last.leftAt = nowIso;
             last.durationSeconds = elapsed;
+            last.businessSeconds = business;
             history[history.length - 1] = last;
           }
         } else {
@@ -539,6 +550,7 @@ export function App() {
             enteredAt: t.stageEnteredAt || t.createdAt,
             leftAt: nowIso,
             durationSeconds: elapsed,
+            businessSeconds: business,
           });
         }
 

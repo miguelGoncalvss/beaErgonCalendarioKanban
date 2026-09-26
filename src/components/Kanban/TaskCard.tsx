@@ -24,11 +24,14 @@ import type { Task, TaskPriority, TaskStatus } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   formatDuration, 
+  formatBusinessDuration,
   getLiveKanbanDurationSeconds, 
   getLiveDelayedDurationSeconds,
   getLiveTodoDurationSeconds,
   getLiveInProgressDurationSeconds,
-  getTaskSlaInfo
+  getTaskSlaInfo,
+  calculateBusinessSeconds,
+  calculateElapsedSeconds
 } from '../../utils/timeMetrics';
 import { TaskAuditModal } from './TaskAuditModal';
 
@@ -108,13 +111,35 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const handleToggleStep = (e: React.MouseEvent, stepId: string) => {
     e.stopPropagation();
     if (!onUpdateTask) return;
-    const updatedChecklist = checklist.map((s) =>
-      s.id === stepId ? { ...s, completed: !s.completed } : s
-    );
+    const nowIso = new Date().toISOString();
+    const updatedChecklist = checklist.map((s) => {
+      if (s.id !== stepId) return s;
+      const willComplete = !s.completed;
+      if (willComplete) {
+        const itemCreated = s.createdAt || task.createdAt || nowIso;
+        const elapsed = calculateElapsedSeconds(itemCreated, nowIso);
+        const business = calculateBusinessSeconds(itemCreated, nowIso);
+        return {
+          ...s,
+          completed: true,
+          completedAt: nowIso,
+          elapsedSeconds: elapsed,
+          businessSeconds: business,
+        };
+      } else {
+        return {
+          ...s,
+          completed: false,
+          completedAt: undefined,
+          elapsedSeconds: undefined,
+          businessSeconds: undefined,
+        };
+      }
+    });
     onUpdateTask({
       ...task,
       checklist: updatedChecklist,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
     });
   };
 
@@ -490,10 +515,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             )}
 
             <div className="col-span-2 flex items-center justify-between pt-1 border-t border-slate-200/60 text-slate-600 font-sans">
-              <span className="text-[9px] font-semibold text-slate-500">Soma Total:</span>
+              <span className="text-[9px] font-semibold text-slate-500">Útil / Corrido:</span>
               <span className="font-mono font-bold text-[#0d345e] text-[10px]">
-                {formatDuration(getLiveKanbanDurationSeconds(task))}
-                {task.status === 'done' && <span className="ml-1 text-[8.5px] text-emerald-600 font-bold">✓ concluído</span>}
+                {formatBusinessDuration(calculateBusinessSeconds(task.createdAt, task.completedAt || new Date().toISOString()))} / {formatDuration(getLiveKanbanDurationSeconds(task))}
+                {task.status === 'done' && <span className="ml-1 text-[8.5px] text-emerald-600 font-bold">✓</span>}
               </span>
             </div>
           </div>

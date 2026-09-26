@@ -7,13 +7,18 @@ export interface StageTransition {
   toStatus: TaskStatus;
   enteredAt: string;
   leftAt?: string;
-  durationSeconds?: number;
+  durationSeconds?: number; // Tempo corrido (24h/7d)
+  businessSeconds?: number; // Tempo útil (expediente comercial 08h-17h, Seg-Sex)
 }
 
 export interface ChecklistItem {
   id: string;
   text: string;
   completed: boolean;
+  createdAt?: string;        // Data/hora em que a etapa foi criada
+  completedAt?: string;      // Data/hora em que foi marcada como concluída
+  elapsedSeconds?: number;   // Tempo corrido total até a conclusão
+  businessSeconds?: number;  // Tempo útil em horário comercial até a conclusão
 }
 
 export type RecurrenceType = 'none' | 'weekly' | 'monthly';
