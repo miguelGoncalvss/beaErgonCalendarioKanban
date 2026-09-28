@@ -32,6 +32,8 @@ export function initDatabase() {
   try { db.exec('ALTER TABLE tasks ADD COLUMN time_in_progress_seconds INTEGER DEFAULT 0;'); } catch {}
   try { db.exec('ALTER TABLE tasks ADD COLUMN stage_history TEXT;'); } catch {}
   try { db.exec('ALTER TABLE tasks ADD COLUMN color TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE tasks ADD COLUMN assignee TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE tasks ADD COLUMN assignee_history TEXT;'); } catch {}
   try { db.exec('ALTER TABLE day_notes ADD COLUMN color TEXT;'); } catch {}
 
   // Garante inicialização de stage_entered_at nas tarefas que foram criadas antes
@@ -280,6 +282,27 @@ function mapTaskRow(r: any) {
     ];
   }
 
+  let parsedTags: any[] = [];
+  try {
+    if (r.tags) {
+      parsedTags = JSON.parse(r.tags);
+    }
+  } catch {}
+
+  let meta: any = {};
+  if (Array.isArray(parsedTags) && parsedTags.length > 0 && typeof parsedTags[0] === 'object' && parsedTags[0] !== null) {
+    meta = parsedTags[0];
+  }
+
+  let assigneeHistory: any[] = [];
+  try {
+    if (r.assignee_history) {
+      assigneeHistory = JSON.parse(r.assignee_history);
+    } else if (Array.isArray(meta.assigneeHistory)) {
+      assigneeHistory = meta.assigneeHistory;
+    }
+  } catch {}
+
   return {
     id: r.id,
     title: r.title,
@@ -288,7 +311,7 @@ function mapTaskRow(r: any) {
     priority: r.priority,
     dueDate: r.due_date || undefined,
     dueTime: r.due_time || undefined,
-    tags: r.tags ? JSON.parse(r.tags) : [],
+    tags: Array.isArray(parsedTags) && typeof parsedTags[0] === 'string' ? parsedTags : [],
     company: r.company || undefined,
     color: r.color || undefined,
     recurrence: r.recurring_group_id?.startsWith('recur-week-') ? 'weekly' : (r.is_monthly_recurring || r.recurring_group_id ? 'monthly' : 'none'),
@@ -305,6 +328,13 @@ function mapTaskRow(r: any) {
     timeInTodoSeconds: r.time_in_todo_seconds || 0,
     timeInProgressSeconds: r.time_in_progress_seconds || 0,
     stageHistory,
+    assignee: r.assignee || meta.assignee || 'Bea',
+    assigneeHistory,
+    checklist: Array.isArray(meta.checklist) ? meta.checklist : [],
+    isPaused: Boolean(meta.isPaused),
+    pausedReason: meta.pausedReason || undefined,
+    pausedAt: meta.pausedAt || undefined,
+    totalPausedSeconds: meta.totalPausedSeconds || 0,
   };
 }
 
@@ -333,6 +363,19 @@ export function createTask(task: any, userId: string = 'user-admin-default') {
     ? task.stageHistory
     : [{ toStatus: task.status, enteredAt: stageEnteredAt }];
 
+  const meta = {
+    assignee: task.assignee || 'Bea',
+    assigneeHistory: task.assigneeHistory || [],
+    checklist: task.checklist || [],
+    isPaused: Boolean(task.isPaused),
+    pausedReason: task.pausedReason || null,
+    pausedAt: task.pausedAt || null,
+    totalPausedSeconds: task.totalPausedSeconds || 0,
+  };
+  const tagsJson = (Array.isArray(task.tags) && task.tags.length > 0 && typeof task.tags[0] === 'object')
+    ? JSON.stringify(task.tags)
+    : JSON.stringify([meta]);
+
   const insertTask = db.prepare(`
     INSERT INTO tasks (
       id, title, description, status, priority, due_date, due_time, tags, company, color,
@@ -352,7 +395,7 @@ export function createTask(task: any, userId: string = 'user-admin-default') {
     task.priority,
     task.dueDate || null,
     task.dueTime || null,
-    JSON.stringify(task.tags || []),
+    tagsJson,
     task.company || null,
     task.color || null,
     task.isMonthlyRecurring || task.recurrence === 'monthly' ? 1 : 0,
@@ -377,6 +420,19 @@ export function updateTask(task: any) {
     updateTaskStatus(task.id, task.status);
   }
 
+  const meta = {
+    assignee: task.assignee || 'Bea',
+    assigneeHistory: task.assigneeHistory || [],
+    checklist: task.checklist || [],
+    isPaused: Boolean(task.isPaused),
+    pausedReason: task.pausedReason || null,
+    pausedAt: task.pausedAt || null,
+    totalPausedSeconds: task.totalPausedSeconds || 0,
+  };
+  const tagsJson = (Array.isArray(task.tags) && task.tags.length > 0 && typeof task.tags[0] === 'object')
+    ? JSON.stringify(task.tags)
+    : JSON.stringify([meta]);
+
   const stmt = db.prepare(`
     UPDATE tasks
     SET title = ?, description = ?, priority = ?, due_date = ?, due_time = ?, tags = ?, company = ?, color = ?, updated_at = ?
@@ -389,7 +445,7 @@ export function updateTask(task: any) {
     task.priority,
     task.dueDate || null,
     task.dueTime || null,
-    JSON.stringify(task.tags || []),
+    tagsJson,
     task.company || null,
     task.color || null,
     new Date().toISOString(),
@@ -501,6 +557,54 @@ export function updateTaskStatus(id: string, newStatus: string) {
     enteredAt: nowIso,
   });
 
+  // Histórico de responsabilidade (fechamento ao concluir / reabertura)
+  let assigneeHistory: any[] = [];
+  let metaObj: any = {};
+  try {
+    const parsedTags = current.tags ? JSON.parse(current.tags) : [];
+    if (Array.isArray(parsedTags) && parsedTags.length > 0 && typeof parsedTags[0] === 'object') {
+      metaObj = { ...parsedTags[0] };
+    }
+  } catch {}
+
+  if (current.assignee_history) {
+    try { assigneeHistory = JSON.parse(current.assignee_history); } catch {}
+  } else if (Array.isArray(metaObj.assigneeHistory)) {
+    assigneeHistory = [...metaObj.assigneeHistory];
+  }
+
+  if (assigneeHistory.length === 0) {
+    assigneeHistory = [
+      {
+        id: `assignee-init-${current.id}`,
+        assignee: current.assignee || metaObj.assignee || 'Bea',
+        enteredAt: current.created_at || nowIso,
+        action: 'created',
+      },
+    ];
+  }
+
+  if (newStatus === 'done') {
+    const lastIdx = assigneeHistory.length - 1;
+    const last = { ...assigneeHistory[lastIdx] };
+    if (!last.leftAt) {
+      last.leftAt = nowIso;
+      last.durationSeconds = Math.max(0, Math.floor((now.getTime() - new Date(last.enteredAt).getTime()) / 1000));
+      assigneeHistory[lastIdx] = last;
+    }
+  } else if (current.status === 'done') {
+    assigneeHistory.push({
+      id: `assignee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      assignee: current.assignee || metaObj.assignee || 'Bea',
+      enteredAt: nowIso,
+      action: 'reopened',
+    });
+  }
+
+  metaObj.assigneeHistory = assigneeHistory;
+  const updatedTagsJson = JSON.stringify([metaObj]);
+  const updatedAssigneeHistoryJson = JSON.stringify(assigneeHistory);
+
   const stmt = db.prepare(`
     UPDATE tasks
     SET status = ?,
@@ -513,7 +617,9 @@ export function updateTaskStatus(id: string, newStatus: string) {
         started_at = ?,
         time_in_todo_seconds = ?,
         time_in_progress_seconds = ?,
-        stage_history = ?
+        stage_history = ?,
+        assignee_history = ?,
+        tags = ?
     WHERE id = ?
   `);
 
@@ -529,6 +635,8 @@ export function updateTaskStatus(id: string, newStatus: string) {
     timeInTodoSeconds,
     timeInProgressSeconds,
     JSON.stringify(history),
+    updatedAssigneeHistoryJson,
+    updatedTagsJson,
     id
   );
 

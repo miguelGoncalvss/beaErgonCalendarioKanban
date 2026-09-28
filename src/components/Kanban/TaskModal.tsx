@@ -27,7 +27,8 @@ import {
   getLiveInProgressDurationSeconds,
   calculateBusinessSeconds,
   calculateElapsedSeconds,
-  getChecklistItemTiming
+  getChecklistItemTiming,
+  getTaskAssigneeAudit
 } from '../../utils/timeMetrics';
 import { TaskAuditModal } from './TaskAuditModal';
 import { ColorPicker } from '../Common/ColorPicker';
@@ -226,6 +227,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     ? Math.round((completedStepsCount / checklist.length) * 100) 
     : 0;
 
+  const assigneeAudit = editingTask ? getTaskAssigneeAudit(editingTask) : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
       <div 
@@ -367,15 +370,26 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </div>
 
           {/* PASSAGEM DE BASTÃO: Responsável Atual (Bea vs Vini) */}
-          <div className="p-3 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-xl space-y-2">
+          <div className="p-3 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-xl space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-extrabold text-[#0d345e] uppercase tracking-wider flex items-center gap-1.5 m-0">
                 <User className="w-3.5 h-3.5 text-[#0d345e]" />
                 <span>Responsável Atual (Com quem está agora?)</span>
               </label>
-              <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
-                Passagem de Bastão
-              </span>
+              {assigneeAudit && assigneeAudit.history.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAuditModalOpen(true)}
+                  className="text-[10px] font-bold text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-1 cursor-pointer transition"
+                >
+                  <span>{assigneeAudit.history.length} transições</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </button>
+              ) : (
+                <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
+                  Passagem de Bastão
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -407,8 +421,84 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 {assignee === 'Vini' && <span className="text-[10px] opacity-80">(ativo)</span>}
               </button>
             </div>
-            <p className="text-[10.5px] text-slate-500 m-0">
-              Facilita a passagem de bastão: "Te passei a tarefa, agora é com você".
+
+            {/* Métricas Acumuladas de Tempo por Operador */}
+            {assigneeAudit && (
+              <div className="grid grid-cols-3 gap-1.5 pt-1 text-[10px]">
+                <div className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
+                  <span className="block text-[9px] text-slate-500 font-bold uppercase">Tempo com Bea</span>
+                  <span className="font-mono font-black text-[#0d345e] block text-xs">
+                    {assigneeAudit.bea.formattedBusiness}
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {assigneeAudit.bea.formattedElapsed} corrido
+                  </span>
+                </div>
+                <div className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
+                  <span className="block text-[9px] text-slate-500 font-bold uppercase">Tempo com Vini</span>
+                  <span className="font-mono font-black text-indigo-900 block text-xs">
+                    {assigneeAudit.vini.formattedBusiness}
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {assigneeAudit.vini.formattedElapsed} corrido
+                  </span>
+                </div>
+                <div className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
+                  <span className="block text-[9px] text-slate-500 font-bold uppercase">Aguardando Cliente</span>
+                  <span className="font-mono font-black text-amber-700 block text-xs">
+                    {assigneeAudit.totalWaitingClient.formattedBusiness}
+                  </span>
+                  <span className="text-[9px] text-slate-400">
+                    SLA congelado
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Linha do Tempo Recente de Bastão */}
+            {assigneeAudit && assigneeAudit.history.length > 0 && (
+              <div className="pt-2 border-t border-blue-200/60 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-700">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-[#0d345e]" />
+                    <span>Linha do Tempo de Passagem:</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAuditModalOpen(true)}
+                    className="text-[10px] text-[#0d345e] font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <span>Auditoria completa</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-28 overflow-y-auto pr-0.5">
+                  {assigneeAudit.history.map((ev, idx) => (
+                    <div
+                      key={ev.id || idx}
+                      className="flex items-center justify-between text-[10.5px] bg-white/90 px-2 py-1 rounded border border-slate-200"
+                    >
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="font-mono text-slate-400 text-[9.5px] shrink-0 font-medium">
+                          {ev.dateStr}
+                        </span>
+                        <span className="font-semibold text-slate-800 truncate">
+                          {ev.actionLabel}
+                        </span>
+                      </div>
+                      {ev.durationWithPrevious && ev.durationWithPrevious.businessSeconds > 0 && (
+                        <span className="text-[9.5px] font-mono font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 shrink-0">
+                          {ev.durationWithPrevious.formattedBusiness}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-[10px] text-slate-500 m-0">
+              Passagem de bastão instantânea auditada: registre com quem a demanda esteve e o tempo útil em cada mão.
             </p>
           </div>
 

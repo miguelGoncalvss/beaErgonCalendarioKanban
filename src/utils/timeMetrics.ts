@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, ChecklistItem } from '../types';
+import type { Task, TaskStatus, ChecklistItem, AssigneeTransition, AssigneeAction } from '../types';
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: 'A Fazer',
@@ -527,5 +527,269 @@ export function getTaskSlaInfo(task: Task): TaskSlaInfo {
       formattedDiff: `Resta ${formatDuration(remainingDiff)}`,
     };
   }
+}
+
+// ==================== AUDITORIA DE RESPONSABILIDADE & PASSAGEM DE BASTÃO ====================
+
+export interface AssigneeMetricsSummary {
+  assignee: string;
+  businessSeconds: number;
+  elapsedSeconds: number;
+  formattedBusiness: string;
+  formattedElapsed: string;
+  transfersCount: number;
+}
+
+export interface FormattedAssigneeEvent {
+  id: string;
+  dateStr: string;       // Ex: "27/09 08:12"
+  fullDateStr: string;   // Ex: "27/09/2026 às 08:12"
+  assignee: string;
+  transferredFrom?: string;
+  action: AssigneeAction;
+  actionLabel: string;
+  durationWithPrevious?: {
+    businessSeconds: number;
+    elapsedSeconds: number;
+    formattedBusiness: string;
+    formattedElapsed: string;
+  };
+  note?: string;
+}
+
+export interface TaskAssigneeAudit {
+  history: FormattedAssigneeEvent[];
+  byAssignee: Record<string, AssigneeMetricsSummary>;
+  bea: AssigneeMetricsSummary;
+  vini: AssigneeMetricsSummary;
+  totalWaitingClient: {
+    businessSeconds: number;
+    elapsedSeconds: number;
+    formattedBusiness: string;
+    formattedElapsed: string;
+  };
+}
+
+/**
+ * Cria uma nova transição de responsabilidade (passagem de bastão) entre Bea e Vini,
+ * fechando o ciclo do operador anterior com a apuração exata de tempo útil e corrido.
+ */
+export function createHandoffTransition(
+  task: Task,
+  newAssignee: string,
+  nowIso = new Date().toISOString()
+): AssigneeTransition[] {
+  const currentHistory: AssigneeTransition[] = task.assigneeHistory?.length
+    ? [...task.assigneeHistory]
+    : [
+        {
+          id: `assignee-init-${task.id}`,
+          assignee: task.assignee || 'Bea',
+          enteredAt: task.createdAt || nowIso,
+          action: 'created',
+        },
+      ];
+
+  const currentAssignee = task.assignee || 'Bea';
+  if (currentAssignee === newAssignee) return currentHistory;
+
+  // Fecha o período do responsável anterior
+  const lastIndex = currentHistory.length - 1;
+  if (lastIndex >= 0) {
+    const lastItem = { ...currentHistory[lastIndex] };
+    if (!lastItem.leftAt) {
+      lastItem.leftAt = nowIso;
+      lastItem.durationSeconds = calculateElapsedSeconds(lastItem.enteredAt, nowIso);
+      lastItem.businessSeconds = calculateBusinessSeconds(lastItem.enteredAt, nowIso);
+      currentHistory[lastIndex] = lastItem;
+    }
+  }
+
+  // Registra a nova transição de recebimento
+  currentHistory.push({
+    id: `assignee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    assignee: newAssignee,
+    transferredFrom: currentAssignee,
+    enteredAt: nowIso,
+    action: 'transferred',
+  });
+
+  return currentHistory;
+}
+
+/**
+ * Fecha a última etapa do responsável quando a tarefa é concluída
+ */
+export function closeAssigneeOnCompletion(
+  history: AssigneeTransition[],
+  completedAt = new Date().toISOString()
+): AssigneeTransition[] {
+  if (!history || history.length === 0) return history;
+  const updated = [...history];
+  const lastIdx = updated.length - 1;
+  const last = { ...updated[lastIdx] };
+
+  if (!last.leftAt) {
+    last.leftAt = completedAt;
+    last.durationSeconds = calculateElapsedSeconds(last.enteredAt, completedAt);
+    last.businessSeconds = calculateBusinessSeconds(last.enteredAt, completedAt);
+    updated[lastIdx] = last;
+  }
+
+  return updated;
+}
+
+/**
+ * Realiza a auditoria completa de responsabilidade e passagem de bastão da tarefa,
+ * totalizando o tempo acumulado com cada pessoa (Bea vs. Vini) e tempo aguardando cliente.
+ */
+export function getTaskAssigneeAudit(task: Task): TaskAssigneeAudit {
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  let rawHistory: AssigneeTransition[] = [];
+  if (task.assigneeHistory && task.assigneeHistory.length > 0) {
+    rawHistory = [...task.assigneeHistory];
+  } else {
+    rawHistory = [
+      {
+        id: `assignee-init-${task.id}`,
+        assignee: task.assignee || 'Bea',
+        enteredAt: task.createdAt || nowIso,
+        action: 'created',
+      },
+    ];
+  }
+
+  const isDone = task.status === 'done';
+  const completionTime = task.completedAt || nowIso;
+
+  const totals: Record<string, { businessSeconds: number; elapsedSeconds: number; transfersCount: number }> = {
+    Bea: { businessSeconds: 0, elapsedSeconds: 0, transfersCount: 0 },
+    Vini: { businessSeconds: 0, elapsedSeconds: 0, transfersCount: 0 },
+  };
+
+  const formattedHistory: FormattedAssigneeEvent[] = [];
+
+  for (let i = 0; i < rawHistory.length; i++) {
+    const step = rawHistory[i];
+    const isLast = i === rawHistory.length - 1;
+    const startIso = step.enteredAt;
+    const endIso = step.leftAt || (isLast ? (isDone ? completionTime : nowIso) : (rawHistory[i + 1]?.enteredAt || nowIso));
+
+    const elapsed = step.durationSeconds != null
+      ? step.durationSeconds
+      : calculateElapsedSeconds(startIso, endIso);
+
+    const business = step.businessSeconds != null
+      ? step.businessSeconds
+      : calculateBusinessSeconds(startIso, endIso);
+
+    const name = step.assignee || 'Bea';
+    if (!totals[name]) {
+      totals[name] = { businessSeconds: 0, elapsedSeconds: 0, transfersCount: 0 };
+    }
+    totals[name].businessSeconds += business;
+    totals[name].elapsedSeconds += elapsed;
+    totals[name].transfersCount += 1;
+
+    // Formatação de data amigável: DD/MM HH:mm
+    const d = new Date(startIso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dateStr = !isNaN(d.getTime()) 
+      ? `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+      : '-';
+    const fullDateStr = !isNaN(d.getTime()) ? d.toLocaleString('pt-BR') : '-';
+
+    let actionLabel = '';
+    if (step.action === 'created') {
+      actionLabel = `${name} recebeu a tarefa`;
+    } else if (step.action === 'transferred') {
+      actionLabel = `${step.transferredFrom || 'Anterior'} passou para ${name}`;
+    } else if (step.action === 'completed') {
+      actionLabel = `${name} concluiu`;
+    } else if (step.action === 'reopened') {
+      actionLabel = `${name} reabriu a tarefa`;
+    } else {
+      actionLabel = `${name} assumiu a tarefa`;
+    }
+
+    formattedHistory.push({
+      id: step.id || `handoff-${i}`,
+      dateStr,
+      fullDateStr,
+      assignee: name,
+      transferredFrom: step.transferredFrom,
+      action: step.action,
+      actionLabel,
+      durationWithPrevious: {
+        businessSeconds: business,
+        elapsedSeconds: elapsed,
+        formattedBusiness: formatBusinessDuration(business),
+        formattedElapsed: formatDuration(elapsed),
+      },
+      note: step.note,
+    });
+  }
+
+  // Se a tarefa já foi concluída e o último registro não é de conclusão
+  if (isDone) {
+    const lastOperator = task.assignee || (rawHistory[rawHistory.length - 1]?.assignee) || 'Bea';
+    const compD = new Date(completionTime);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const compDateStr = !isNaN(compD.getTime())
+      ? `${pad(compD.getDate())}/${pad(compD.getMonth() + 1)} ${pad(compD.getHours())}:${pad(compD.getMinutes())}`
+      : '-';
+
+    formattedHistory.push({
+      id: `completed-event-${task.id}`,
+      dateStr: compDateStr,
+      fullDateStr: !isNaN(compD.getTime()) ? compD.toLocaleString('pt-BR') : '-',
+      assignee: lastOperator,
+      action: 'completed',
+      actionLabel: `${lastOperator} concluiu a tarefa`,
+    });
+  }
+
+  const byAssignee: Record<string, AssigneeMetricsSummary> = {};
+  for (const [k, v] of Object.entries(totals)) {
+    byAssignee[k] = {
+      assignee: k,
+      businessSeconds: v.businessSeconds,
+      elapsedSeconds: v.elapsedSeconds,
+      formattedBusiness: formatBusinessDuration(v.businessSeconds),
+      formattedElapsed: formatDuration(v.elapsedSeconds),
+      transfersCount: v.transfersCount,
+    };
+  }
+
+  const livePausedSecs = getLivePausedSeconds(task);
+
+  return {
+    history: formattedHistory,
+    byAssignee,
+    bea: byAssignee['Bea'] || {
+      assignee: 'Bea',
+      businessSeconds: 0,
+      elapsedSeconds: 0,
+      formattedBusiness: '0m',
+      formattedElapsed: '0m',
+      transfersCount: 0,
+    },
+    vini: byAssignee['Vini'] || {
+      assignee: 'Vini',
+      businessSeconds: 0,
+      elapsedSeconds: 0,
+      formattedBusiness: '0m',
+      formattedElapsed: '0m',
+      transfersCount: 0,
+    },
+    totalWaitingClient: {
+      businessSeconds: livePausedSecs,
+      elapsedSeconds: livePausedSecs,
+      formattedBusiness: formatBusinessDuration(livePausedSecs),
+      formattedElapsed: formatDuration(livePausedSecs),
+    },
+  };
 }
 

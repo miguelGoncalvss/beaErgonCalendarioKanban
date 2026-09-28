@@ -1,9 +1,3 @@
--- ==============================================================================
--- SCRIPT DE INICIALIZAÇÃO DO BANCO DE DADOS SUPABASE (PROJETO BEA ERGON)
--- ==============================================================================
--- Execute este script completo no painel do Supabase:
--- Acesse: "SQL Editor" -> "New Query" -> Cole o conteúdo abaixo -> Clique em "Run"
--- ==============================================================================
 
 -- 1. LIMPAR TABELAS ANTIGAS (SE EXISTIREM)
 DROP TABLE IF EXISTS day_notes CASCADE;
@@ -62,9 +56,6 @@ CREATE TABLE companies (
     created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
 );
 
--- 5. HABILITAR ROW LEVEL SECURITY (RLS) COM ACESSO TOTAL PARA CHAVE PÚBLICA (ANON)
--- Como o sistema não possui tela de login e é usado diretamente pela equipe,
--- liberamos as permissões totais para leitura e escrita pela API do Supabase.
 
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE day_notes ENABLE ROW LEVEL SECURITY;
@@ -87,7 +78,3 @@ CREATE POLICY "Permitir leitura de empresas" ON companies FOR SELECT USING (true
 CREATE POLICY "Permitir inserção de empresas" ON companies FOR INSERT WITH CHECK (true);
 CREATE POLICY "Permitir atualização de empresas" ON companies FOR UPDATE USING (true);
 CREATE POLICY "Permitir exclusão de empresas" ON companies FOR DELETE USING (true);
-
--- ==============================================================================
--- FIM DO SCRIPT - BANCO ZERADO E PRONTO PARA O FRONT-END!
--- ==============================================================================

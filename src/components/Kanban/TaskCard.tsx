@@ -31,7 +31,9 @@ import {
   getLiveInProgressDurationSeconds,
   getTaskSlaInfo,
   calculateBusinessSeconds,
-  calculateElapsedSeconds
+  calculateElapsedSeconds,
+  createHandoffTransition,
+  getTaskAssigneeAudit
 } from '../../utils/timeMetrics';
 import { TaskAuditModal } from './TaskAuditModal';
 
@@ -86,6 +88,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     ? Math.round((completedSteps / checklist.length) * 100) 
     : 0;
 
+  const assigneeAudit = getTaskAssigneeAudit(task);
+
   const handleDragStart = (e: React.DragEvent) => {
     setIsDragging(true);
     e.dataTransfer.setData('text/plain', task.id);
@@ -96,14 +100,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     setIsDragging(false);
   };
 
-  // Passagem de bastão instantânea (1-clique)
+  // Passagem de bastão instantânea (1-clique) com histórico auditado
   const handleHandoff = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onUpdateTask) return;
+    const nowIso = new Date().toISOString();
+    const newHistory = createHandoffTransition(task, otherAssignee, nowIso);
     onUpdateTask({
       ...task,
       assignee: otherAssignee,
-      updatedAt: new Date().toISOString(),
+      assigneeHistory: newHistory,
+      updatedAt: nowIso,
     });
   };
 
@@ -344,29 +351,54 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       </div>
 
       {/* PASSAGEM DE BASTÃO: Responsável Atual + Botão de 1-Clique */}
-      <div className="flex items-center justify-between gap-1.5 bg-slate-50/90 border border-slate-200/90 rounded-lg p-1.5 mb-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0 ${
-            currentAssignee === 'Vini' ? 'bg-indigo-600' : 'bg-[#0d345e]'
-          }`}>
-            {currentAssignee.charAt(0)}
+      <div className="flex flex-col gap-1 bg-slate-50/90 border border-slate-200/90 rounded-lg p-1.5 mb-2">
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0 ${
+              currentAssignee === 'Vini' ? 'bg-indigo-600' : 'bg-[#0d345e]'
+            }`}>
+              {currentAssignee.charAt(0)}
+            </div>
+            <span className="text-[11px] font-bold text-slate-800 truncate">
+              {currentAssignee}
+            </span>
           </div>
-          <span className="text-[11px] font-bold text-slate-800 truncate">
-            {currentAssignee}
-          </span>
+
+          {onUpdateTask && (
+            <button
+              type="button"
+              onClick={handleHandoff}
+              className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-blue-50 text-[#0d345e] border border-slate-200 shadow-2xs hover:border-blue-300 transition cursor-pointer shrink-0"
+              title={`Passar o bastão agora para ${otherAssignee}`}
+            >
+              <ArrowRightLeft className="w-2.5 h-2.5 text-blue-600" />
+              <span>Passar p/ {otherAssignee}</span>
+            </button>
+          )}
         </div>
 
-        {onUpdateTask && (
-          <button
-            type="button"
-            onClick={handleHandoff}
-            className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-blue-50 text-[#0d345e] border border-slate-200 shadow-2xs hover:border-blue-300 transition cursor-pointer shrink-0"
-            title={`Passar o bastão agora para ${otherAssignee}`}
-          >
-            <ArrowRightLeft className="w-2.5 h-2.5 text-blue-600" />
-            <span>Passar p/ {otherAssignee}</span>
-          </button>
-        )}
+        {/* Resumo rápido do tempo por operador */}
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsAuditModalOpen(true);
+          }}
+          className="flex items-center justify-between text-[9.5px] pt-1 border-t border-slate-200/60 font-mono text-slate-600 cursor-pointer hover:text-[#0d345e] transition"
+          title="Clique para ver a auditoria de responsabilidade e passagem de bastão"
+        >
+          <span className="flex items-center gap-1 font-sans">
+            <span className="text-slate-400">Tempo:</span>
+            <strong className="text-blue-900">B: {assigneeAudit.bea.formattedBusiness}</strong>
+            <span className="text-slate-300">|</span>
+            <strong className="text-indigo-900">V: {assigneeAudit.vini.formattedBusiness}</strong>
+          </span>
+
+          {assigneeAudit.history.length > 1 && (
+            <span className="text-[9px] font-semibold text-slate-500 bg-white border border-slate-200 px-1 py-0.2 rounded font-sans">
+              {assigneeAudit.history.length - 1}x trocas
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Empresa / Cliente Badge */}

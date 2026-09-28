@@ -21,6 +21,20 @@ export interface ChecklistItem {
   businessSeconds?: number;  // Tempo útil em horário comercial até a conclusão
 }
 
+export type AssigneeAction = 'created' | 'transferred' | 'completed' | 'reopened';
+
+export interface AssigneeTransition {
+  id?: string;
+  assignee: string;              // "Bea" | "Vini"
+  transferredFrom?: string;      // Quem passou o bastão
+  enteredAt: string;             // Data/hora em que assumiu
+  leftAt?: string;               // Data/hora em que passou para o outro ou concluiu
+  durationSeconds?: number;      // Tempo corrido total com o responsável (24h/7d)
+  businessSeconds?: number;      // Tempo útil dentro do expediente (08h às 17h, Seg-Sex)
+  action: AssigneeAction;        // 'created' | 'transferred' | 'completed' | 'reopened'
+  note?: string;
+}
+
 export type RecurrenceType = 'none' | 'weekly' | 'monthly';
 
 export interface Task {
@@ -45,6 +59,7 @@ export interface Task {
   recurringGroupId?: string;
   // Campos operacionais da dupla (Bea & Vini)
   assignee?: string; // Com quem está a tarefa ("Bea" | "Vini")
+  assigneeHistory?: AssigneeTransition[]; // Histórico detalhado de responsabilidade e passagem de bastão
   checklist?: ChecklistItem[]; // Etapas do processo da empresa (To-Do)
   isPaused?: boolean; // Se o tempo da tarefa está pausado
   pausedReason?: string; // Motivo da pausa (ex: "Aguardando cliente enviar extrato")

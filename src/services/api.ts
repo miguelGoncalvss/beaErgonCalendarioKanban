@@ -40,6 +40,9 @@ function mapTaskFromSupabase(r: any): Task {
     isMonthlyRecurring: recurrence === 'monthly',
     recurringGroupId: r.recurring_group_id || undefined,
     assignee: meta.assignee || r.assignee || 'Bea',
+    assigneeHistory: Array.isArray(meta.assigneeHistory)
+      ? meta.assigneeHistory
+      : (Array.isArray(r.assignee_history) ? r.assignee_history : []),
     checklist: Array.isArray(meta.checklist) ? meta.checklist : (Array.isArray(r.checklist) ? r.checklist : []),
     isPaused: Boolean(meta.isPaused ?? r.is_paused),
     pausedReason: meta.pausedReason || r.paused_reason || undefined,
@@ -56,6 +59,7 @@ function mapTaskFromSupabase(r: any): Task {
 function mapTaskToSupabase(task: any) {
   const meta = {
     assignee: task.assignee || 'Bea',
+    assigneeHistory: task.assigneeHistory || [],
     checklist: task.checklist || [],
     isPaused: Boolean(task.isPaused),
     pausedReason: task.pausedReason || null,
@@ -372,8 +376,37 @@ export const api = {
         enteredAt: nowIso,
       });
 
-      const updates = {
+      // Mantém histórico de responsabilidade sincronizado (fechar ao concluir / reabrir)
+      let currentTags = current.tags;
+      if (typeof currentTags === 'string') {
+        try { currentTags = JSON.parse(currentTags); } catch {}
+      }
+      let metaObj: any = {};
+      if (Array.isArray(currentTags) && currentTags.length > 0 && typeof currentTags[0] === 'object') {
+        metaObj = { ...currentTags[0] };
+      }
+      let assigneeHist: any[] = Array.isArray(metaObj.assigneeHistory) ? [...metaObj.assigneeHistory] : [];
+      if (status === 'done' && assigneeHist.length > 0) {
+        const last = { ...assigneeHist[assigneeHist.length - 1] };
+        if (!last.leftAt) {
+          last.leftAt = nowIso;
+          last.durationSeconds = Math.max(0, Math.floor((now.getTime() - new Date(last.enteredAt).getTime()) / 1000));
+          last.businessSeconds = calculateBusinessSeconds(last.enteredAt, nowIso);
+          assigneeHist[assigneeHist.length - 1] = last;
+        }
+      } else if (current.status === 'done') {
+        assigneeHist.push({
+          id: `assignee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          assignee: metaObj.assignee || 'Bea',
+          enteredAt: nowIso,
+          action: 'reopened',
+        });
+      }
+      metaObj.assigneeHistory = assigneeHist;
+
+      const updates: any = {
         status,
+        tags: [metaObj],
         stage_entered_at: nowIso,
         started_at: startedAt,
         delayed_at: delayedAt,

@@ -22,7 +22,11 @@ import { DayNotesModal } from './components/Calendar/DayNotesModal';
 import { AdminMetricsModal } from './components/Admin/AdminMetricsModal';
 import { CompanyManagerModal } from './components/Common/CompanyManagerModal';
 import { formatDateKey, parseDateKey } from './utils/dateUtils';
-import { calculateBusinessSeconds } from './utils/timeMetrics';
+import { 
+  calculateBusinessSeconds, 
+  createHandoffTransition, 
+  closeAssigneeOnCompletion 
+} from './utils/timeMetrics';
 
 export function App() {
   const [tasks, setTasks] = useState<Task[]>(() => loadTasksFromStorage());
@@ -155,6 +159,19 @@ export function App() {
   // Task Actions
   const handleAddTask = async (taskData: Omit<Task, 'id' | 'createdAt'>) => {
     // Tratamento otimista local
+    const nowIso = new Date().toISOString();
+    const initialAssignee = taskData.assignee || 'Bea';
+    const initialAssigneeHistory = (taskData.assigneeHistory && taskData.assigneeHistory.length > 0)
+      ? taskData.assigneeHistory
+      : [
+          {
+            id: `assignee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            assignee: initialAssignee,
+            enteredAt: nowIso,
+            action: 'created' as const,
+          },
+        ];
+
     const isWeekly = taskData.recurrence === 'weekly' || taskData.recurringGroupId?.startsWith('recur-week-');
     const isMonthly = taskData.recurrence === 'monthly' || (!isWeekly && (Boolean(taskData.isMonthlyRecurring) || Boolean(taskData.recurringGroupId)));
     const isRecurring = isWeekly || isMonthly;
@@ -202,6 +219,8 @@ export function App() {
           recurrence: isWeekly ? 'weekly' : 'monthly',
           isMonthlyRecurring: !isWeekly,
           recurringGroupId,
+          assignee: initialAssignee,
+          assigneeHistory: initialAssigneeHistory,
           createdAt: new Date().toISOString(),
         });
 
@@ -235,6 +254,8 @@ export function App() {
           recurrence: isWeekly ? 'weekly' : 'monthly',
           isMonthlyRecurring: !isWeekly,
           recurringGroupId,
+          assignee: initialAssignee,
+          assigneeHistory: initialAssigneeHistory,
         });
         const [sqlTasks, sqlNotes] = await Promise.all([api.getTasks(), api.getNotes()]);
         setTasks(sqlTasks);
@@ -253,12 +274,18 @@ export function App() {
     const newTask: Task = {
       ...taskData,
       id: tempId,
+      assignee: initialAssignee,
+      assigneeHistory: initialAssigneeHistory,
       createdAt: new Date().toISOString(),
     };
     setTasks((prev) => [newTask, ...prev]);
 
     try {
-      const created = await api.createTask(taskData) as Task;
+      const created = await api.createTask({
+        ...taskData,
+        assignee: initialAssignee,
+        assigneeHistory: initialAssigneeHistory,
+      }) as Task;
       if (created && created.id) {
         setTasks((prev) => prev.map((t) => (t.id === tempId ? created : t)));
       }
@@ -270,10 +297,19 @@ export function App() {
   const handleUpdateTask = async (updatedTask: Task) => {
     const existing = tasks.find((t) => t.id === updatedTask.id);
     let finalTask = { ...updatedTask };
+    const nowIso = new Date().toISOString();
+
+    // Responsabilidade & Passagem de Bastão (Bea <-> Vini)
+    if (existing && updatedTask.assignee && existing.assignee && existing.assignee !== updatedTask.assignee) {
+      if (!updatedTask.assigneeHistory || updatedTask.assigneeHistory === existing.assigneeHistory) {
+        finalTask.assigneeHistory = createHandoffTransition(existing, updatedTask.assignee, nowIso);
+      }
+    } else if (!finalTask.assigneeHistory && existing?.assigneeHistory) {
+      finalTask.assigneeHistory = existing.assigneeHistory;
+    }
 
     if (existing && existing.status !== updatedTask.status) {
       const now = new Date();
-      const nowIso = now.toISOString();
       const stageStart = existing.stageEnteredAt 
         ? new Date(existing.stageEnteredAt).getTime() 
         : (existing.createdAt ? new Date(existing.createdAt).getTime() : now.getTime());
@@ -291,6 +327,20 @@ export function App() {
         totalDelayedSeconds += elapsed;
       }
 
+      let updatedAssigneeHistory = finalTask.assigneeHistory ? [...finalTask.assigneeHistory] : undefined;
+      if (updatedTask.status === 'done') {
+        updatedAssigneeHistory = closeAssigneeOnCompletion(updatedAssigneeHistory || existing.assigneeHistory || [], nowIso);
+      } else if (existing.status === 'done') {
+        const hist = [...(updatedAssigneeHistory || existing.assigneeHistory || [])];
+        hist.push({
+          id: `assignee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          assignee: finalTask.assignee || 'Bea',
+          enteredAt: nowIso,
+          action: 'reopened' as const,
+        });
+        updatedAssigneeHistory = hist;
+      }
+
       finalTask = {
         ...updatedTask,
         stageEnteredAt: nowIso,
@@ -298,6 +348,7 @@ export function App() {
         timeInProgressSeconds,
         totalDelayedSeconds,
         startedAt: (updatedTask.status === 'in_progress' && !existing.startedAt) ? nowIso : existing.startedAt,
+        assigneeHistory: updatedAssigneeHistory || finalTask.assigneeHistory,
         updatedAt: nowIso,
       };
     }
@@ -560,6 +611,29 @@ export function App() {
           enteredAt: nowIso,
         });
 
+        // Atualiza histórico de responsabilidade (fechamento ao concluir / reabertura)
+        let assigneeHistory = t.assigneeHistory && t.assigneeHistory.length > 0
+          ? [...t.assigneeHistory]
+          : [
+              {
+                id: `assignee-init-${t.id}`,
+                assignee: t.assignee || 'Bea',
+                enteredAt: t.createdAt || nowIso,
+                action: 'created' as const,
+              },
+            ];
+
+        if (newStatus === 'done') {
+          assigneeHistory = closeAssigneeOnCompletion(assigneeHistory, nowIso);
+        } else if (t.status === 'done') {
+          assigneeHistory.push({
+            id: `assignee-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            assignee: t.assignee || 'Bea',
+            enteredAt: nowIso,
+            action: 'reopened' as const,
+          });
+        }
+
         return {
           ...t,
           status: newStatus,
@@ -573,6 +647,7 @@ export function App() {
             ? Math.max(0, Math.floor((now.getTime() - new Date(t.createdAt).getTime()) / 1000))
             : (t.status === 'done' ? undefined : t.completedDurationSeconds),
           stageHistory: history,
+          assigneeHistory,
           updatedAt: nowIso,
         };
       })

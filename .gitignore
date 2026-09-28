@@ -29,3 +29,6 @@ dist-ssr
 *.db*
 *.sqlite*
 server/*.db*
+
+# Documentação local / notas
+detalhes.md

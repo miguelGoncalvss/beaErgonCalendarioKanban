@@ -14,7 +14,9 @@ import {
   Briefcase,
   CheckSquare,
   Square,
-  Info
+  Info,
+  ArrowRightLeft,
+  PauseCircle
 } from 'lucide-react';
 import type { Task, TaskStatus } from '../../types';
 import { 
@@ -25,6 +27,7 @@ import {
   calculateBusinessSeconds,
   calculateElapsedSeconds,
   getTaskSlaInfo,
+  getTaskAssigneeAudit,
   STATUS_LABELS
 } from '../../utils/timeMetrics';
 
@@ -58,6 +61,7 @@ export const TaskAuditModal: React.FC<TaskAuditModalProps> = ({
   const now = new Date();
   const slaInfo = getTaskSlaInfo(task);
   const stageMetrics = getTaskStageDualMetrics(task);
+  const assigneeAudit = getTaskAssigneeAudit(task);
   const history = task.stageHistory || [];
   const checklist = task.checklist || [];
 
@@ -202,6 +206,152 @@ export const TaskAuditModal: React.FC<TaskAuditModalProps> = ({
             <div className="shrink-0 self-stretch sm:self-center flex sm:flex-col items-center justify-between sm:justify-center p-2 rounded-lg bg-white/70 border border-current/20 text-center min-w-[120px]">
               <span className="text-[10px] uppercase font-bold tracking-wider">Situação SLA</span>
               <span className="text-xs font-black">{slaInfo.statusLabel}</span>
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* HISTÓRICO DE RESPONSABILIDADE & PASSAGEM DE BASTÃO (Bea & Vini) */}
+          {/* ============================================================ */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#0d345e] text-amber-300 flex items-center justify-center shadow-xs">
+                  <ArrowRightLeft className="w-4 h-4" />
+                </div>
+                <div>
+                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider m-0">
+                    Histórico de Responsabilidade & Passagem de Bastão
+                  </h5>
+                  <p className="text-[10.5px] text-slate-500 m-0">
+                    Registro temporal exato de posse da demanda e tempo de dedicação por pessoa
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#0d345e] border border-blue-200 flex items-center gap-1">
+                <span>Responsável Atual:</span>
+                <strong className="underline">{task.assignee || 'Bea'}</strong>
+              </span>
+            </div>
+
+            {/* Cards com as 3 métricas pedidas: Tempo com Bea, Tempo com Vini, Tempo aguardando cliente */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* 1. Tempo com Bea */}
+              <div className="p-3 rounded-xl bg-white border border-blue-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-blue-900">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded-full bg-[#0d345e] text-white flex items-center justify-center text-[9px] font-black">
+                      B
+                    </div>
+                    <span>Tempo com Bea</span>
+                  </span>
+                  <span className="text-[9.5px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">
+                    {assigneeAudit.bea.transfersCount}x no fluxo
+                  </span>
+                </div>
+                <div className="text-lg font-black text-[#0d345e] font-mono">
+                  {assigneeAudit.bea.formattedBusiness}
+                  <span className="text-[10px] font-bold text-slate-500 ml-1 font-sans">útil</span>
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  ⏱️ {assigneeAudit.bea.formattedElapsed} corrido (24h/7d)
+                </div>
+              </div>
+
+              {/* 2. Tempo com Vini */}
+              <div className="p-3 rounded-xl bg-white border border-indigo-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-indigo-900">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-black">
+                      V
+                    </div>
+                    <span>Tempo com Vini</span>
+                  </span>
+                  <span className="text-[9.5px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                    {assigneeAudit.vini.transfersCount}x no fluxo
+                  </span>
+                </div>
+                <div className="text-lg font-black text-indigo-900 font-mono">
+                  {assigneeAudit.vini.formattedBusiness}
+                  <span className="text-[10px] font-bold text-slate-500 ml-1 font-sans">útil</span>
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  ⏱️ {assigneeAudit.vini.formattedElapsed} corrido (24h/7d)
+                </div>
+              </div>
+
+              {/* 3. Tempo aguardando cliente */}
+              <div className="p-3 rounded-xl bg-white border border-amber-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-amber-900">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <PauseCircle className="w-4 h-4 text-amber-600" />
+                    <span>Aguardando Cliente</span>
+                  </span>
+                  {task.isPaused && (
+                    <span className="text-[9px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300 animate-pulse">
+                      Pausado agora
+                    </span>
+                  )}
+                </div>
+                <div className="text-lg font-black text-amber-950 font-mono">
+                  {assigneeAudit.totalWaitingClient.formattedBusiness}
+                  <span className="text-[10px] font-bold text-slate-500 ml-1 font-sans">pausado</span>
+                </div>
+                <div className="text-[10px] text-slate-500 truncate" title={task.pausedReason || 'Nenhum motivo de pausa registrado'}>
+                  {task.pausedReason ? `Motivo: ${task.pausedReason}` : 'Sem pausas ativas'}
+                </div>
+              </div>
+            </div>
+
+            {/* Linha do Tempo Exata de Passagem de Bastão (Timeline solicitada pelo usuário) */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span>Timeline de Passagem de Bastão</span>
+                <span className="text-[10px] font-normal text-slate-400">Horários e transições registradas</span>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                {assigneeAudit.history.map((event, idx) => {
+                  const isBea = event.assignee === 'Bea';
+                  const isVini = event.assignee === 'Vini';
+                  return (
+                    <div 
+                      key={event.id || idx} 
+                      className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50/70 border border-slate-100 text-xs hover:bg-blue-50/30 transition"
+                    >
+                      <div className="font-mono text-slate-500 font-bold text-[11px] whitespace-nowrap pt-0.5 shrink-0 min-w-[80px]">
+                        {event.dateStr}
+                      </div>
+
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0 mt-0.5 shadow-2xs ${
+                        isVini ? 'bg-indigo-600' : isBea ? 'bg-[#0d345e]' : 'bg-slate-700'
+                      }`}>
+                        {event.assignee.charAt(0)}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center justify-between gap-1">
+                          <span className="font-bold text-slate-900">
+                            {event.actionLabel}
+                          </span>
+
+                          {event.durationWithPrevious && event.action !== 'created' && (
+                            <span className="text-[10px] font-semibold text-[#0d345e] bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded font-mono">
+                              {event.durationWithPrevious.formattedBusiness} útil ({event.durationWithPrevious.formattedElapsed} corrido)
+                            </span>
+                          )}
+                        </div>
+
+                        {event.note && (
+                          <p className="text-[10.5px] text-slate-500 m-0 mt-0.5 italic">
+                            {event.note}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
