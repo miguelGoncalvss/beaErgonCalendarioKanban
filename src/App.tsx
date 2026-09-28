@@ -21,6 +21,7 @@ import { TaskModal } from './components/Kanban/TaskModal';
 import { DayNotesModal } from './components/Calendar/DayNotesModal';
 import { AdminMetricsModal } from './components/Admin/AdminMetricsModal';
 import { CompanyManagerModal } from './components/Common/CompanyManagerModal';
+import { WorkloadDashboardModal } from './components/Team/WorkloadDashboardModal';
 import { formatDateKey, parseDateKey } from './utils/dateUtils';
 import { 
   calculateBusinessSeconds, 
@@ -45,6 +46,7 @@ export function App() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isAdminMetricsOpen, setIsAdminMetricsOpen] = useState(false);
   const [isCompanyManagerOpen, setIsCompanyManagerOpen] = useState(false);
+  const [isWorkloadDashboardOpen, setIsWorkloadDashboardOpen] = useState(false);
 
   // Sincronização centralizada com o banco de dados
   const syncWithDatabase = useCallback(async () => {
@@ -957,6 +959,7 @@ export function App() {
       <Navbar 
         onOpenAdminMetrics={() => setIsAdminMetricsOpen(true)}
         onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
+        onOpenWorkloadDashboard={() => setIsWorkloadDashboardOpen(true)}
       />
 
       {/* View Switcher: Lado a Lado | Calendário | Kanban */}
@@ -1118,6 +1121,20 @@ export function App() {
         tasks={tasks}
         onAddNewCompany={handleAddNewCompany}
         onDeleteCompany={handleDeleteCompany}
+      />
+
+      {/* Dashboard de Carga de Trabalho & Gestão Diária (Equipe Ergon: Bea vs. Vini) */}
+      <WorkloadDashboardModal
+        isOpen={isWorkloadDashboardOpen}
+        onClose={() => setIsWorkloadDashboardOpen(false)}
+        tasks={tasks}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
+        onSelectTask={(task) => {
+          setEditingTask(task);
+          setIsNewTaskModalOpen(true);
+        }}
+        onUpdateTask={handleUpdateTask}
       />
     </div>
   );

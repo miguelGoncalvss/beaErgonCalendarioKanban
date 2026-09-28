@@ -3,11 +3,13 @@ import { ShieldCheck, Users, Building2 } from 'lucide-react';
 interface NavbarProps {
   onOpenAdminMetrics?: () => void;
   onOpenCompanyManager?: () => void;
+  onOpenWorkloadDashboard?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
   onOpenAdminMetrics,
   onOpenCompanyManager,
+  onOpenWorkloadDashboard,
 }) => {
   return (
     <header className="bg-[#0d345e] text-white border-b-2 border-amber-400 shadow-md sticky top-0 z-30 font-['Inter',sans-serif]">
@@ -61,16 +63,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Equipe Ergon Badge */}
-          <div 
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#08223f] border border-blue-800 text-xs font-semibold text-white shadow-xs"
-            title="Equipe Ergon Contábil"
+          {/* Equipe Ergon - Botão Interativo com Dashboard de Carga & Gestão Diária */}
+          <button 
+            type="button"
+            onClick={onOpenWorkloadDashboard}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#08223f] hover:bg-blue-900 border border-blue-700/80 hover:border-amber-400 text-xs font-semibold text-white shadow-xs transition cursor-pointer group"
+            title="Abrir Dashboard de Carga de Trabalho & Gestão Diária (Bea vs. Vini)"
           >
-            <div className="w-6 h-6 rounded bg-amber-400 text-[#0d345e] flex items-center justify-center text-xs font-black shadow-xs">
+            <div className="w-6 h-6 rounded bg-amber-400 text-[#0d345e] flex items-center justify-center text-xs font-black shadow-xs group-hover:scale-105 transition-transform">
               <Users className="w-3.5 h-3.5" />
             </div>
-            <span className="font-medium text-blue-100">Equipe Ergon</span>
-          </div>
+            <div className="flex flex-col text-left">
+              <span className="font-bold text-blue-100 group-hover:text-amber-300 transition-colors leading-tight">
+                Equipe Ergon
+              </span>
+              <span className="text-[9.5px] text-amber-300/80 font-normal leading-tight">
+                Carga & Prazos
+              </span>
+            </div>
+          </button>
         </div>
 
       </div>

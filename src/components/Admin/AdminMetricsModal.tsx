@@ -11,7 +11,9 @@ import {
   User,
   ArrowRightLeft,
   ExternalLink,
-  PauseCircle
+  PauseCircle,
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import type { Task } from '../../types';
 import { 
@@ -40,12 +42,29 @@ export const AdminMetricsModal: React.FC<AdminMetricsModalProps> = ({
 }) => {
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [periodScope, setPeriodScope] = useState<'current_and_past' | 'all'>('current_and_past');
   const [selectedTaskForAudit, setSelectedTaskForAudit] = useState<Task | null>(null);
 
   if (!isOpen) return null;
 
+  const now = new Date();
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  // Quantidade de tarefas agendadas para meses futuros que não foram iniciadas
+  const futureExcludedCount = tasks.filter(
+    (t) => t.dueDate && t.status === 'todo' && t.dueDate.substring(0, 7) > currentYearMonth
+  ).length;
+
   // Filtragem
   const filteredTasks = tasks.filter((t) => {
+    // Se o escopo for 'current_and_past', ignora tarefas com vencimento em meses futuros que ainda estão 'todo' (não iniciadas)
+    if (periodScope === 'current_and_past' && t.dueDate && t.status === 'todo') {
+      const taskYearMonth = t.dueDate.substring(0, 7);
+      if (taskYearMonth > currentYearMonth) {
+        return false;
+      }
+    }
+
     const matchComp = selectedCompany === 'all' || t.company === selectedCompany;
     const matchStatus = statusFilter === 'all' || t.status === statusFilter;
     return matchComp && matchStatus;
@@ -275,44 +294,79 @@ export const AdminMetricsModal: React.FC<AdminMetricsModalProps> = ({
             </div>
           </div>
 
-          {/* Filtros da Tabela */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                <select
-                  value={selectedCompany}
-                  onChange={(e) => setSelectedCompany(e.target.value)}
-                  className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 cursor-pointer"
-                >
-                  <option value="all">Todas as Empresas</option>
-                  {companies.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+          {/* Filtros da Tabela & Escopo Temporal */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Filtro de Período (Protege contra meses futuros distorcendo SLA) */}
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#0d345e]" />
+                  <select
+                    value={periodScope}
+                    onChange={(e) => setPeriodScope(e.target.value as 'current_and_past' | 'all')}
+                    className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-[#0d345e] cursor-pointer"
+                    title="Controla se tarefas agendadas para meses futuros devem ser contabilizadas no cálculo de SLA"
+                  >
+                    <option value="current_and_past">Até o Mês Atual (Sem meses futuros)</option>
+                    <option value="all">Todos os Meses (Incluir repetições futuras)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                  <select
+                    value={selectedCompany}
+                    onChange={(e) => setSelectedCompany(e.target.value)}
+                    className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 cursor-pointer"
+                  >
+                    <option value="all">Todas as Empresas</option>
+                    {companies.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-slate-500" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 cursor-pointer"
+                  >
+                    <option value="all">Todos os Status</option>
+                    <option value="todo">A Fazer</option>
+                    <option value="in_progress">Fazendo</option>
+                    <option value="done">Concluído</option>
+                    <option value="delayed">Atrasado</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-slate-500" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 cursor-pointer"
-                >
-                  <option value="all">Todos os Status</option>
-                  <option value="todo">A Fazer</option>
-                  <option value="in_progress">Fazendo</option>
-                  <option value="done">Concluído</option>
-                  <option value="delayed">Atrasado</option>
-                </select>
-              </div>
+              <span className="text-xs font-semibold text-slate-500">
+                Total: {filteredTasks.length} {filteredTasks.length === 1 ? 'registro' : 'registros'}
+              </span>
             </div>
 
-            <span className="text-xs font-semibold text-slate-500">
-              Total: {filteredTasks.length} {filteredTasks.length === 1 ? 'registro' : 'registros'}
-            </span>
+            {/* Aviso inteligente quando meses futuros foram isolados */}
+            {periodScope === 'current_and_past' && futureExcludedCount > 0 && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50/80 border border-blue-200/80 rounded-lg text-[11px] text-[#0d345e]">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                  <span>
+                    <strong>{futureExcludedCount} agendamentos de meses futuros</strong> foram preservados mas excluídos deste cálculo para manter os indicadores de SLA e tempo fiéis ao presente.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPeriodScope('all')}
+                  className="font-bold underline hover:text-blue-900 cursor-pointer shrink-0 ml-2"
+                >
+                  Ver todos
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Tabela de Tarefas e Metadados de Tempo */}
