@@ -45,7 +45,7 @@ export interface WorkloadSummary {
  * e que ainda não foi iniciada (ex: repetições futuras em 'todo' de meses seguintes)
  */
 export function isFutureUnstartedTask(task: Task, refDate = new Date()): boolean {
-  if (!task.dueDate) return false;
+  if (!task || !task.dueDate) return false;
   // Se já foi iniciada ou concluída, representa trabalho real do operador
   if (task.status === 'done' || task.status === 'in_progress') return false;
 
@@ -53,8 +53,8 @@ export function isFutureUnstartedTask(task: Task, refDate = new Date()): boolean
   const refMonth = String(refDate.getMonth() + 1).padStart(2, '0');
   const refYearMonth = `${refYear}-${refMonth}`;
 
-  const taskYearMonth = task.dueDate.substring(0, 7);
-  return taskYearMonth > refYearMonth;
+  const taskYearMonth = typeof task.dueDate === 'string' ? task.dueDate.substring(0, 7) : '';
+  return Boolean(taskYearMonth) && taskYearMonth > refYearMonth;
 }
 
 /**
@@ -91,10 +91,12 @@ export function getWorkloadSummary(
   const next7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
   const next7DaysKey = formatDateKey(next7Days);
 
+  const safeTasks = Array.isArray(tasks) ? tasks.filter(Boolean) : [];
+
   // Filtra meses futuros agendados se includeFuture for false (padrão)
   const effectiveTasks = options?.includeFuture
-    ? tasks
-    : tasks.filter((t) => !isFutureUnstartedTask(t, now));
+    ? safeTasks
+    : safeTasks.filter((t) => !isFutureUnstartedTask(t, now));
 
   // Separa tarefas ativas (não concluídas) e concluídas
   const activeTasks = effectiveTasks.filter((t) => t.status !== 'done');
