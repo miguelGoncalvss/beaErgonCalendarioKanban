@@ -10,6 +10,7 @@ import {
   canManageDepartments,
   canManageMembers,
   canTransferOwnership,
+  canChangeTaskSector,
   type UserContext,
   type TaskContext,
 } from '../src/utils/permissionUtils.ts';
@@ -171,5 +172,19 @@ describe('Matriz de Permissões e Controle de Acesso por Setor (Prompt Seção 6
     assert.equal(canTransferOwnership(managerFiscal), false);
     assert.equal(canTransferOwnership(orgAdmin), false);
     assert.equal(canTransferOwnership(orgOwner), true);
+  });
+
+  it('Funcionário e Chefe não podem transferir tarefas entre setores; apenas Admin/Owner podem', () => {
+    const taskContabil: TaskContext = {
+      id: 'task-c-1',
+      organizationId: orgId,
+      departmentId: 'dept-contabil',
+      assignedTo: memberContabilOnly.userId,
+    };
+
+    assert.equal(canChangeTaskSector(memberContabilOnly, taskContabil), false);
+    assert.equal(canChangeTaskSector(managerFiscal, taskContabil), false);
+    assert.equal(canChangeTaskSector(orgAdmin, taskContabil), true);
+    assert.equal(canChangeTaskSector(orgOwner, taskContabil), true);
   });
 });

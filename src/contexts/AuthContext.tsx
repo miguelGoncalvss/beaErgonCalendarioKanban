@@ -149,6 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setOrganizationMember(member);
       if (member.organization) {
         setOrganization(member.organization);
+        localStorage.setItem('ergon_active_org_id', member.organization.id);
       }
 
       const isOrgAdminOrOwner = member.role === 'owner' || member.role === 'admin';
@@ -351,6 +352,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setDepartmentMembers([]);
       setActiveDepartmentIdState(null);
       localStorage.removeItem('ergon_active_department_id');
+      localStorage.removeItem('ergon_active_org_id');
       setViewMode('login');
       setStatus('unauthenticated');
     }
@@ -397,6 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [session, loadUserData]);
 
   const activeDepartment = useMemo(() => {
+    if (activeDepartmentId === 'all') return null;
     if (!activeDepartmentId) return departments[0] || null;
     return departments.find((d) => d.id === activeDepartmentId) || departments[0] || null;
   }, [departments, activeDepartmentId]);

@@ -30,6 +30,10 @@ function mapTaskFromSupabase(r: any): Task {
     dueTime: r.due_time || undefined,
     company: r.company || undefined,
     color: r.color || undefined,
+    organizationId: r.organization_id || undefined,
+    departmentId: r.department_id || undefined,
+    assignedTo: r.assigned_to || undefined,
+    createdBy: r.created_by || undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at || undefined,
     completedAt: r.completed_at || undefined,
@@ -70,6 +74,9 @@ function mapTaskToSupabase(task: any) {
   const isWeekly = task.recurrence === 'weekly' || task.recurringGroupId?.startsWith('recur-week-');
   const isMonthly = task.recurrence === 'monthly' || (!isWeekly && (Boolean(task.isMonthlyRecurring) || Boolean(task.recurringGroupId)));
 
+  const orgId = task.organizationId || (typeof window !== 'undefined' ? localStorage.getItem('ergon_active_org_id') : null) || null;
+  const deptId = task.departmentId || (typeof window !== 'undefined' ? localStorage.getItem('ergon_active_department_id') : null) || null;
+
   return {
     id: task.id,
     title: task.title,
@@ -81,6 +88,10 @@ function mapTaskToSupabase(task: any) {
     tags: [meta], // Armazena com segurança no JSONB tags já existente no Supabase
     company: task.company || null,
     color: task.color || null,
+    organization_id: orgId,
+    department_id: deptId,
+    assigned_to: task.assignedTo || null,
+    created_by: task.createdBy || null,
     is_monthly_recurring: isMonthly,
     recurring_group_id: task.recurringGroupId || null,
     delayed_at: task.delayedAt || null,
@@ -112,6 +123,8 @@ function mapNoteFromSupabase(r: any): DayNote {
     company: r.company || undefined,
     color: r.color || undefined,
     time: r.time || undefined,
+    organizationId: r.organization_id || undefined,
+    departmentId: r.department_id || undefined,
     isCompleted: Boolean(r.is_completed),
     createdAt: r.created_at,
     recurrence,
@@ -124,6 +137,9 @@ function mapNoteToSupabase(note: any) {
   const isWeekly = note.recurrence === 'weekly' || note.recurringGroupId?.startsWith('recur-week-');
   const isMonthly = note.recurrence === 'monthly' || (!isWeekly && (Boolean(note.isMonthlyRecurring) || Boolean(note.recurringGroupId)));
 
+  const orgId = note.organizationId || (typeof window !== 'undefined' ? localStorage.getItem('ergon_active_org_id') : null) || null;
+  const deptId = note.departmentId || (typeof window !== 'undefined' ? localStorage.getItem('ergon_active_department_id') : null) || null;
+
   return {
     id: note.id,
     task_id: note.taskId || null,
@@ -134,6 +150,8 @@ function mapNoteToSupabase(note: any) {
     company: note.company || null,
     color: note.color || null,
     time: note.time || null,
+    organization_id: orgId,
+    department_id: deptId,
     is_completed: Boolean(note.isCompleted),
     is_monthly_recurring: isMonthly,
     recurring_group_id: note.recurringGroupId || null,
@@ -143,17 +161,24 @@ function mapNoteToSupabase(note: any) {
 
 export const api = {
   // ==================== TAREFAS (KANBAN) ====================
-  async getTasks(): Promise<Task[]> {
+  async getTasks(departmentId?: string): Promise<Task[]> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('tasks')
         .select('*')
         .order('created_at', { ascending: false });
+
+      if (departmentId) {
+        query = query.eq('department_id', departmentId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []).map(mapTaskFromSupabase);
     }
 
-    const res = await fetch(`${API_BASE}/tasks`);
+    const query = departmentId ? `?departmentId=${encodeURIComponent(departmentId)}` : '';
+    const res = await fetch(`${API_BASE}/tasks${query}`);
     if (!res.ok) throw new Error('Falha ao buscar tarefas do servidor');
     return res.json();
   },
@@ -214,6 +239,8 @@ export const api = {
             mapNoteToSupabase({
               id: occurrenceNoteId,
               taskId: occurrenceTaskId,
+              organizationId: taskData.organizationId,
+              departmentId: taskData.departmentId,
               date: dateKeyStr,
               title: taskData.title,
               content: taskData.description || null,
@@ -485,17 +512,24 @@ export const api = {
   },
 
   // ==================== ANOTAÇÕES / CALENDÁRIO ====================
-  async getNotes(): Promise<DayNote[]> {
+  async getNotes(departmentId?: string): Promise<DayNote[]> {
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('day_notes')
         .select('*')
         .order('date', { ascending: true });
+
+      if (departmentId) {
+        query = query.eq('department_id', departmentId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []).map(mapNoteFromSupabase);
     }
 
-    const res = await fetch(`${API_BASE}/notes`);
+    const query = departmentId ? `?departmentId=${encodeURIComponent(departmentId)}` : '';
+    const res = await fetch(`${API_BASE}/notes${query}`);
     if (!res.ok) throw new Error('Falha ao buscar anotações do servidor');
     return res.json();
   },
@@ -557,6 +591,8 @@ export const api = {
                 isMonthlyRecurring: !isWeekly,
                 recurringGroupId,
                 color: noteData.color,
+                organizationId: noteData.organizationId,
+                departmentId: noteData.departmentId,
                 assignee: 'Bea',
                 checklist: [],
                 createdAt: new Date().toISOString(),
@@ -575,6 +611,8 @@ export const api = {
               company: noteData.company || null,
               color: noteData.color || null,
               time: noteData.time || null,
+              organizationId: noteData.organizationId,
+              departmentId: noteData.departmentId,
               isCompleted: false,
               recurrence: isWeekly ? 'weekly' : 'monthly',
               isMonthlyRecurring: !isWeekly,
@@ -615,6 +653,8 @@ export const api = {
           dueDate: noteData.date,
           dueTime: noteData.time || undefined,
           tags: [categoryTag],
+          organizationId: noteData.organizationId,
+          departmentId: noteData.departmentId,
           assignee: 'Bea',
           checklist: [],
           createdAt: new Date().toISOString(),
@@ -628,6 +668,8 @@ export const api = {
         ...noteData,
         id: noteId,
         taskId: taskId || null,
+        organizationId: noteData.organizationId,
+        departmentId: noteData.departmentId,
         createdAt: new Date().toISOString(),
       });
       const { error: nErr } = await supabase.from('day_notes').insert(newNote);
@@ -835,9 +877,22 @@ export const api = {
     if (!trimmed) return;
 
     if (isSupabaseConfigured()) {
-      await supabase
+      const activeOrgId = typeof window !== 'undefined' ? localStorage.getItem('ergon_active_org_id') : null;
+      const { data: existing } = await supabase
         .from('companies')
-        .upsert({ name: trimmed, cnpj: cnpj || null }, { onConflict: 'name' });
+        .select('id')
+        .eq('name', trimmed)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase
+          .from('companies')
+          .insert({
+            name: trimmed,
+            cnpj: cnpj || null,
+            ...(activeOrgId ? { organization_id: activeOrgId } : {}),
+          });
+      }
       return;
     }
 

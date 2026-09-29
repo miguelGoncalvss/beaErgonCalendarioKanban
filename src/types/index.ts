@@ -57,6 +57,11 @@ export interface Task {
   recurrence?: RecurrenceType;
   isMonthlyRecurring?: boolean;
   recurringGroupId?: string;
+  // Campos de isolamento setorial e autenticação (Fase 3)
+  organizationId?: string;
+  departmentId?: string;
+  assignedTo?: string; // ID do perfil no Supabase
+  createdBy?: string;  // ID do criador da tarefa
   // Campos operacionais da dupla (Bea & Vini)
   assignee?: string; // Com quem está a tarefa ("Bea" | "Vini")
   assigneeHistory?: AssigneeTransition[]; // Histórico detalhado de responsabilidade e passagem de bastão
@@ -90,6 +95,8 @@ export interface DayNote {
   recurrence?: RecurrenceType;
   isMonthlyRecurring?: boolean;
   recurringGroupId?: string;
+  organizationId?: string;
+  departmentId?: string;
   sendToKanban?: boolean; // Se deve gerar/manter tarefa correspondente no Kanban
 }
 

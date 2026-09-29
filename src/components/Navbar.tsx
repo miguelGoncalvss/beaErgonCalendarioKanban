@@ -52,16 +52,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Seletor de Setor Ativo (Se houver múltiplos setores ou para Admin) */}
-          {departments.length > 1 ? (
+          {departments.length > 1 || (isOrgAdmin && departments.length > 0) ? (
             <div className="hidden md:flex items-center ml-2 pl-3 border-l border-blue-900/80">
               <div className="relative flex items-center">
                 <Briefcase className="w-3.5 h-3.5 text-amber-400 absolute left-2 pointer-events-none" />
                 <select
-                  value={activeDepartment?.id || ''}
+                  value={activeDepartment?.id || (isOrgAdmin ? 'all' : '')}
                   onChange={(e) => setActiveDepartmentId(e.target.value)}
                   className="pl-7 pr-8 py-1 bg-[#08223f] hover:bg-blue-900/80 border border-blue-800 text-amber-300 text-xs font-bold rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400 transition appearance-none"
                   title="Alterar setor ativo para filtragem"
                 >
+                  {isOrgAdmin && (
+                    <option value="all" className="bg-[#08223f] text-white">
+                      Todos os Setores
+                    </option>
+                  )}
                   {departments.map((dept) => (
                     <option key={dept.id} value={dept.id} className="bg-[#08223f] text-white">
                       Setor: {dept.name}

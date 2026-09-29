@@ -34,6 +34,7 @@ import { SplashScreen } from './components/Auth/SplashScreen';
 import { AccountStatusScreen } from './components/Auth/AccountStatusScreen';
 
 function ErgonWorkspace() {
+  const { activeDepartment, organization } = useAuth();
   const [tasks, setTasks] = useState<Task[]>(() => loadTasksFromStorage());
   const [notes, setNotes] = useState<DayNote[]>(() => loadNotesFromStorage());
   const [companies, setCompanies] = useState<string[]>(() => loadCompaniesFromStorage());
@@ -55,9 +56,10 @@ function ErgonWorkspace() {
   // Sincronização centralizada com o banco de dados
   const syncWithDatabase = useCallback(async () => {
     try {
+      const deptFilter = activeDepartment?.id;
       const [sqlTasks, sqlNotes, sqlCompanies] = await Promise.all([
-        api.getTasks(),
-        api.getNotes(),
+        api.getTasks(deptFilter),
+        api.getNotes(deptFilter),
         api.getCompanies(),
       ]);
 
@@ -76,7 +78,7 @@ function ErgonWorkspace() {
     } catch (err) {
       console.warn('Sincronização em segundo plano:', err);
     }
-  }, []);
+  }, [activeDepartment?.id]);
 
   // 1. Carrega dados do Banco SQL e faz migração segura de dados antigos
   useEffect(() => {
@@ -178,14 +180,20 @@ function ErgonWorkspace() {
           },
         ];
 
-    const isWeekly = taskData.recurrence === 'weekly' || taskData.recurringGroupId?.startsWith('recur-week-');
-    const isMonthly = taskData.recurrence === 'monthly' || (!isWeekly && (Boolean(taskData.isMonthlyRecurring) || Boolean(taskData.recurringGroupId)));
+    const taskPayload = {
+      ...taskData,
+      organizationId: taskData.organizationId || organization?.id || undefined,
+      departmentId: taskData.departmentId || activeDepartment?.id || undefined,
+    };
+
+    const isWeekly = taskPayload.recurrence === 'weekly' || taskPayload.recurringGroupId?.startsWith('recur-week-');
+    const isMonthly = taskPayload.recurrence === 'monthly' || (!isWeekly && (Boolean(taskPayload.isMonthlyRecurring) || Boolean(taskPayload.recurringGroupId)));
     const isRecurring = isWeekly || isMonthly;
 
     if (isRecurring) {
-      const baseDueDate = taskData.dueDate || formatDateKey(new Date());
+      const baseDueDate = taskPayload.dueDate || formatDateKey(new Date());
       const baseDate = parseDateKey(baseDueDate);
-      const recurringGroupId = taskData.recurringGroupId || (isWeekly ? `recur-week-${Date.now()}` : `recur-month-${Date.now()}`);
+      const recurringGroupId = taskPayload.recurringGroupId || (isWeekly ? `recur-week-${Date.now()}` : `recur-month-${Date.now()}`);
       const newTasks: Task[] = [];
       const newNotes: DayNote[] = [];
 
@@ -206,7 +214,7 @@ function ErgonWorkspace() {
         const occurrenceTaskId = `task-${Date.now()}-${i}`;
         const occurrenceNoteId = `note-${Date.now()}-${i}`;
 
-        const checklistForOccurrence = (taskData.checklist || []).map((step) => ({
+        const checklistForOccurrence = (taskPayload.checklist || []).map((step) => ({
           ...step,
           id: `step-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
           completed: i === 0 ? Boolean(step.completed) : false,
@@ -217,9 +225,9 @@ function ErgonWorkspace() {
         }));
 
         newTasks.push({
-          ...taskData,
+          ...taskPayload,
           id: occurrenceTaskId,
-          status: i === 0 ? taskData.status : 'todo',
+          status: i === 0 ? taskPayload.status : 'todo',
           dueDate: dateKeyStr,
           checklist: checklistForOccurrence,
           recurrence: isWeekly ? 'weekly' : 'monthly',
@@ -233,21 +241,23 @@ function ErgonWorkspace() {
         newNotes.push({
           id: occurrenceNoteId,
           taskId: occurrenceTaskId,
+          organizationId: taskPayload.organizationId,
+          departmentId: taskPayload.departmentId,
           date: dateKeyStr,
-          title: taskData.title,
-          content: taskData.description,
+          title: taskPayload.title,
+          content: taskPayload.description,
           category: 'geral',
-          company: taskData.company,
+          company: taskPayload.company,
           recurrence: isWeekly ? 'weekly' : 'monthly',
           isMonthlyRecurring: !isWeekly,
           recurringGroupId,
-          color: taskData.color,
+          color: taskPayload.color,
           createdAt: new Date().toISOString(),
         });
       }
 
-      if (taskData.company) {
-        handleAddNewCompany(taskData.company);
+      if (taskPayload.company) {
+        handleAddNewCompany(taskPayload.company);
       }
 
       setTasks((prev) => [...newTasks, ...prev]);
@@ -255,7 +265,7 @@ function ErgonWorkspace() {
 
       try {
         await api.createTask({
-          ...taskData,
+          ...taskPayload,
           dueDate: baseDueDate,
           recurrence: isWeekly ? 'weekly' : 'monthly',
           isMonthlyRecurring: !isWeekly,
@@ -263,22 +273,20 @@ function ErgonWorkspace() {
           assignee: initialAssignee,
           assigneeHistory: initialAssigneeHistory,
         });
-        const [sqlTasks, sqlNotes] = await Promise.all([api.getTasks(), api.getNotes()]);
-        setTasks(sqlTasks);
-        setNotes(sqlNotes);
+        await syncWithDatabase();
       } catch (err) {
         console.error('Erro ao sincronizar tarefa recorrente com SQL:', err);
       }
       return;
     }
 
-    if (taskData.company) {
-      handleAddNewCompany(taskData.company);
+    if (taskPayload.company) {
+      handleAddNewCompany(taskPayload.company);
     }
 
     const tempId = `task-${Date.now()}`;
     const newTask: Task = {
-      ...taskData,
+      ...taskPayload,
       id: tempId,
       assignee: initialAssignee,
       assigneeHistory: initialAssigneeHistory,
@@ -288,7 +296,7 @@ function ErgonWorkspace() {
 
     try {
       const created = await api.createTask({
-        ...taskData,
+        ...taskPayload,
         assignee: initialAssignee,
         assigneeHistory: initialAssigneeHistory,
       }) as Task;
@@ -686,13 +694,19 @@ function ErgonWorkspace() {
 
     const shouldCreateTask = noteData.sendToKanban !== false;
 
-    const isWeekly = noteData.recurrence === 'weekly' || noteData.recurringGroupId?.startsWith('recur-week-');
-    const isMonthly = noteData.recurrence === 'monthly' || (!isWeekly && (Boolean(noteData.isMonthlyRecurring) || Boolean(noteData.recurringGroupId)));
+    const notePayload = {
+      ...noteData,
+      organizationId: noteData.organizationId || organization?.id || undefined,
+      departmentId: noteData.departmentId || activeDepartment?.id || undefined,
+    };
+
+    const isWeekly = notePayload.recurrence === 'weekly' || notePayload.recurringGroupId?.startsWith('recur-week-');
+    const isMonthly = notePayload.recurrence === 'monthly' || (!isWeekly && (Boolean(notePayload.isMonthlyRecurring) || Boolean(notePayload.recurringGroupId)));
     const isRecurring = isWeekly || isMonthly;
 
     if (isRecurring) {
-      const baseDate = parseDateKey(noteData.date);
-      const recurringGroupId = noteData.recurringGroupId || (isWeekly ? `recur-week-${Date.now()}` : `recur-month-${Date.now()}`);
+      const baseDate = parseDateKey(notePayload.date);
+      const recurringGroupId = notePayload.recurringGroupId || (isWeekly ? `recur-week-${Date.now()}` : `recur-month-${Date.now()}`);
       const newNotes: DayNote[] = [];
       const newTasks: Task[] = [];
 
@@ -714,7 +728,7 @@ function ErgonWorkspace() {
         const occurrenceNoteId = `note-${Date.now()}-${i}`;
 
         newNotes.push({
-          ...noteData,
+          ...notePayload,
           id: occurrenceNoteId,
           taskId: occurrenceTaskId,
           date: dateKeyStr,
@@ -727,26 +741,28 @@ function ErgonWorkspace() {
         if (shouldCreateTask && occurrenceTaskId) {
           newTasks.push({
             id: occurrenceTaskId,
-            title: noteData.title,
-            description: noteData.content,
-            company: noteData.company,
+            title: notePayload.title,
+            description: notePayload.content,
+            company: notePayload.company,
+            organizationId: notePayload.organizationId,
+            departmentId: notePayload.departmentId,
             status: 'todo',
             priority,
             dueDate: dateKeyStr,
-            dueTime: noteData.time || undefined,
+            dueTime: notePayload.time || undefined,
             assignee: 'Bea',
             checklist: [],
             recurrence: isWeekly ? 'weekly' : 'monthly',
             isMonthlyRecurring: !isWeekly,
             recurringGroupId,
-            color: noteData.color,
+            color: notePayload.color,
             createdAt: new Date().toISOString(),
           });
         }
       }
 
-      if (noteData.company) {
-        handleAddNewCompany(noteData.company);
+      if (notePayload.company) {
+        handleAddNewCompany(notePayload.company);
       }
 
       setNotes((prev) => [...newNotes, ...prev]);
@@ -756,7 +772,7 @@ function ErgonWorkspace() {
 
       try {
         await api.createNote({
-          ...noteData,
+          ...notePayload,
           recurrence: isWeekly ? 'weekly' : 'monthly',
           isMonthlyRecurring: !isWeekly,
           recurringGroupId,
@@ -768,15 +784,15 @@ function ErgonWorkspace() {
       return;
     }
 
-    if (noteData.company) {
-      handleAddNewCompany(noteData.company);
+    if (notePayload.company) {
+      handleAddNewCompany(notePayload.company);
     }
 
     const tempTaskId = shouldCreateTask ? `task-${Date.now()}` : undefined;
     const tempNoteId = `note-${Date.now()}`;
 
     const newNote: DayNote = {
-      ...noteData,
+      ...notePayload,
       id: tempNoteId,
       taskId: tempTaskId,
       createdAt: new Date().toISOString(),
@@ -786,16 +802,18 @@ function ErgonWorkspace() {
     if (shouldCreateTask && tempTaskId) {
       const newTask: Task = {
         id: tempTaskId,
-        title: noteData.title,
-        description: noteData.content,
-        company: noteData.company,
+        title: notePayload.title,
+        description: notePayload.content,
+        company: notePayload.company,
+        organizationId: notePayload.organizationId,
+        departmentId: notePayload.departmentId,
         status: 'todo',
         priority,
-        dueDate: noteData.date,
-        dueTime: noteData.time || undefined,
+        dueDate: notePayload.date,
+        dueTime: notePayload.time || undefined,
         assignee: 'Bea',
         checklist: [],
-        color: noteData.color,
+        color: notePayload.color,
         createdAt: new Date().toISOString(),
       };
       setTasks((prev) => [newTask, ...prev]);
@@ -803,7 +821,7 @@ function ErgonWorkspace() {
 
     try {
       await api.createNote({
-        ...noteData,
+        ...notePayload,
         id: tempNoteId,
         taskId: tempTaskId,
       } as any);

@@ -154,3 +154,12 @@ export function canTransferOwnership(user: UserContext): boolean {
   if (!user.isOrgActive) return false;
   return user.organizationRole === 'owner';
 }
+
+/**
+ * Verifica se o usuário pode alterar a organização ou o setor de uma tarefa (apenas Admin/Owner inicialmente)
+ */
+export function canChangeTaskSector(user: UserContext, task: TaskContext): boolean {
+  if (!user.isOrgActive) return false;
+  if (task.organizationId !== user.organizationId) return false;
+  return user.organizationRole === 'owner' || user.organizationRole === 'admin';
+}

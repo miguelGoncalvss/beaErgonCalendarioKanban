@@ -215,6 +215,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         totalPausedSeconds: updatedTotalPaused,
         isMonthlyRecurring,
         recurrence: isMonthlyRecurring ? 'monthly' : 'none',
+        organizationId: editingTask?.organizationId,
+        departmentId: editingTask?.departmentId,
+        assignedTo: editingTask?.assignedTo,
+        createdBy: editingTask?.createdBy,
       },
       editingTask ? editingTask.id : undefined
     );
