@@ -14,7 +14,6 @@ import {
   Database, 
   KeyRound, 
   Users, 
-  FileSpreadsheet, 
   Calculator, 
   Loader2,
   ExternalLink
@@ -32,8 +31,17 @@ export const AuthDrawer: React.FC<AuthDrawerProps> = ({
   onClose,
   onOpenAdminMetrics 
 }) => {
-  const { user, login, register, logout, isAuthenticated } = useAuth();
+  const { 
+    user, 
+    signOut, 
+    signInWithPassword, 
+    status, 
+    isGlobalAdmin, 
+    isOrgOwner, 
+    isDepartmentManager 
+  } = useAuth();
   
+  const isAuthenticated = status === 'authenticated';
   const [isLoginTab, setIsLoginTab] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -79,11 +87,11 @@ export const AuthDrawer: React.FC<AuthDrawerProps> = ({
 
     try {
       if (isLoginTab) {
-        await login(email.trim(), password);
+        const { error } = await signInWithPassword(email.trim(), password);
+        if (error) throw error;
         setSuccessMsg('Login realizado com sucesso!');
       } else {
-        await register(name.trim(), email.trim(), password, role);
-        setSuccessMsg('Conta criada com sucesso!');
+        setErrorMsg('O cadastro de novos usuários é feito via convite na plataforma corporativa.');
       }
       setTimeout(() => {
         setSuccessMsg('');
@@ -102,37 +110,36 @@ export const AuthDrawer: React.FC<AuthDrawerProps> = ({
     setErrorMsg('');
   };
 
-  const getRoleBadge = (userRole?: string) => {
-    switch (userRole) {
-      case 'admin':
-        return {
-          label: 'Administrador Geral',
-          icon: ShieldCheck,
-          badgeClass: 'bg-amber-400/20 text-amber-300 border-amber-400/50',
-        };
-      case 'fiscal':
-        return {
-          label: 'Analista Fiscal',
-          icon: FileSpreadsheet,
-          badgeClass: 'bg-blue-400/20 text-blue-200 border-blue-400/40',
-        };
-      case 'dp':
-        return {
-          label: 'Departamento Pessoal',
-          icon: Users,
-          badgeClass: 'bg-blue-400/20 text-blue-200 border-blue-400/40',
-        };
-      case 'contabilidade':
-      default:
-        return {
-          label: 'Contabilidade & Operações',
-          icon: Calculator,
-          badgeClass: 'bg-amber-400/20 text-amber-300 border-amber-400/50',
-        };
+  const getRoleBadge = () => {
+    if (isOrgOwner) {
+      return {
+        label: 'Proprietário (Owner)',
+        icon: ShieldCheck,
+        badgeClass: 'bg-amber-400/20 text-amber-300 border-amber-400/50',
+      };
     }
+    if (isGlobalAdmin) {
+      return {
+        label: 'Administrador Geral',
+        icon: ShieldCheck,
+        badgeClass: 'bg-amber-400/20 text-amber-300 border-amber-400/50',
+      };
+    }
+    if (isDepartmentManager) {
+      return {
+        label: 'Chefe de Setor',
+        icon: Users,
+        badgeClass: 'bg-blue-400/20 text-blue-200 border-blue-400/40',
+      };
+    }
+    return {
+      label: 'Membro Operacional',
+      icon: Calculator,
+      badgeClass: 'bg-blue-400/20 text-blue-200 border-blue-400/40',
+    };
   };
 
-  const roleInfo = getRoleBadge(user?.role);
+  const roleInfo = getRoleBadge();
   const RoleIcon = roleInfo.icon;
 
   return (
@@ -192,7 +199,7 @@ export const AuthDrawer: React.FC<AuthDrawerProps> = ({
                 {/* Cabeçalho do Perfil no Azul */}
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-xl bg-amber-400 text-[#0d345e] flex items-center justify-center text-2xl font-black shadow-md border-2 border-amber-300 shrink-0">
-                    {user.name ? user.name.slice(0, 2).toUpperCase() : 'US'}
+                    {user.fullName ? user.fullName.slice(0, 2).toUpperCase() : 'US'}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -206,7 +213,7 @@ export const AuthDrawer: React.FC<AuthDrawerProps> = ({
                       </span>
                     </div>
                     <h3 className="text-lg font-black text-white truncate m-0 leading-tight">
-                      {user.name}
+                      {user.fullName}
                     </h3>
                     <p className="text-xs text-blue-200/90 truncate m-0 mt-0.5">
                       {user.email}
@@ -253,7 +260,7 @@ export const AuthDrawer: React.FC<AuthDrawerProps> = ({
                 </div>
 
                 {/* Botão de Métricas para Administrador */}
-                {user.role === 'admin' && onOpenAdminMetrics && (
+                {isGlobalAdmin && onOpenAdminMetrics && (
                   <button
                     type="button"
                     onClick={() => {
@@ -277,7 +284,7 @@ export const AuthDrawer: React.FC<AuthDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      logout();
+                      signOut();
                     }}
                     className="w-full py-3 px-4 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 border border-rose-400/30 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-2xs"
                   >

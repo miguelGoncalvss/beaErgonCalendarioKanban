@@ -28,8 +28,12 @@ import {
   createHandoffTransition, 
   closeAssigneeOnCompletion 
 } from './utils/timeMetrics';
+import { useAuth } from './contexts/AuthContext';
+import { LoginScreen } from './components/Auth/LoginScreen';
+import { SplashScreen } from './components/Auth/SplashScreen';
+import { AccountStatusScreen } from './components/Auth/AccountStatusScreen';
 
-export function App() {
+function ErgonWorkspace() {
   const [tasks, setTasks] = useState<Task[]>(() => loadTasksFromStorage());
   const [notes, setNotes] = useState<DayNote[]>(() => loadNotesFromStorage());
   const [companies, setCompanies] = useState<string[]>(() => loadCompaniesFromStorage());
@@ -1138,6 +1142,28 @@ export function App() {
       />
     </div>
   );
+}
+
+export function App() {
+  const { status, viewMode } = useAuth();
+
+  if (status === 'loading') {
+    return <SplashScreen />;
+  }
+
+  if (viewMode === 'update_password' || viewMode === 'accept_invite' || status === 'unauthenticated') {
+    return <LoginScreen />;
+  }
+
+  if (status === 'deactivated') {
+    return <AccountStatusScreen reason="deactivated" />;
+  }
+
+  if (status === 'no_membership') {
+    return <AccountStatusScreen reason="no_membership" />;
+  }
+
+  return <ErgonWorkspace />;
 }
 
 export default App;

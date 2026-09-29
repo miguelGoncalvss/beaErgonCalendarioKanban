@@ -73,7 +73,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onAddNewCompany,
   onOpenCompanyManager,
 }) => {
-  const { user } = useAuth();
+  const { isGlobalAdmin } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
@@ -842,7 +842,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </div>
 
           {/* Informações Administrativas de Tempo (Somente Admin) */}
-          {user?.role === 'admin' && editingTask && (
+          {isGlobalAdmin && editingTask && (
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 text-xs animate-fadeIn">
               <div className="flex items-center justify-between text-slate-800 font-bold border-b border-slate-200 pb-1.5">
                 <span className="flex items-center gap-1.5">

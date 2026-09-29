@@ -68,7 +68,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onUpdateTask,
   onSelectDueDate,
 }) => {
-  const { user } = useAuth();
+  const { isGlobalAdmin } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
@@ -294,7 +294,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                     )}
                   </button>
 
-                  {user?.role === 'admin' && (
+                  {isGlobalAdmin && (
                     <button
                       type="button"
                       onClick={() => {
@@ -505,7 +505,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       )}
 
       {/* Admin Restricted Timing Metadata */}
-      {user?.role === 'admin' && (
+      {isGlobalAdmin && (
         <div 
           className="my-1.5 p-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-[10px] text-slate-600 space-y-1"
           onClick={(e) => e.stopPropagation()}
