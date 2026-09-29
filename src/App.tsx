@@ -20,6 +20,7 @@ import { KanbanBoard } from './components/Kanban/KanbanBoard';
 import { TaskModal } from './components/Kanban/TaskModal';
 import { DayNotesModal } from './components/Calendar/DayNotesModal';
 import { AdminMetricsModal } from './components/Admin/AdminMetricsModal';
+import { TeamManagementModal } from './components/Admin/TeamManagementModal';
 import { CompanyManagerModal } from './components/Common/CompanyManagerModal';
 import { WorkloadDashboardModal } from './components/Team/WorkloadDashboardModal';
 import { formatDateKey, parseDateKey } from './utils/dateUtils';
@@ -52,6 +53,7 @@ function ErgonWorkspace() {
   const [isAdminMetricsOpen, setIsAdminMetricsOpen] = useState(false);
   const [isCompanyManagerOpen, setIsCompanyManagerOpen] = useState(false);
   const [isWorkloadDashboardOpen, setIsWorkloadDashboardOpen] = useState(false);
+  const [isTeamManagementOpen, setIsTeamManagementOpen] = useState(false);
 
   // Sincronização centralizada com o banco de dados
   const syncWithDatabase = useCallback(async () => {
@@ -982,6 +984,7 @@ function ErgonWorkspace() {
         onOpenAdminMetrics={() => setIsAdminMetricsOpen(true)}
         onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
         onOpenWorkloadDashboard={() => setIsWorkloadDashboardOpen(true)}
+        onOpenTeamManagement={() => setIsTeamManagementOpen(true)}
       />
 
       {/* View Switcher: Lado a Lado | Calendário | Kanban */}
@@ -1157,6 +1160,12 @@ function ErgonWorkspace() {
           setIsNewTaskModalOpen(true);
         }}
         onUpdateTask={handleUpdateTask}
+      />
+
+      {/* Painel Administrativo de Equipe & Acessos (Setores, Vínculos e Convites) */}
+      <TeamManagementModal
+        isOpen={isTeamManagementOpen}
+        onClose={() => setIsTeamManagementOpen(false)}
       />
     </div>
   );

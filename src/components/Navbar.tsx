@@ -6,12 +6,14 @@ interface NavbarProps {
   onOpenAdminMetrics?: () => void;
   onOpenCompanyManager?: () => void;
   onOpenWorkloadDashboard?: () => void;
+  onOpenTeamManagement?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
   onOpenAdminMetrics,
   onOpenCompanyManager,
   onOpenWorkloadDashboard,
+  onOpenTeamManagement,
 }) => {
   const { 
     user, 
@@ -110,6 +112,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">Métricas & SLA</span>
               <span className="sm:hidden">SLA</span>
+            </button>
+          )}
+
+          {/* Equipe & Acessos (Gestão de Setores, Pessoas e Convites) */}
+          {onOpenTeamManagement && (isOrgAdmin || isDepartmentManager) && (
+            <button
+              onClick={onOpenTeamManagement}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#08223f] hover:bg-blue-900 border border-amber-400/50 hover:border-amber-400 text-amber-300 text-xs font-bold transition cursor-pointer shadow-xs"
+              title="Painel Administrativo: Gestão de Setores, Vínculos e Convites"
+            >
+              <Users className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden md:inline">Equipe & Acessos</span>
+              <span className="md:hidden">Acessos</span>
             </button>
           )}
 

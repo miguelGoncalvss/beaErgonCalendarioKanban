@@ -72,3 +72,31 @@ export interface UserSessionContext {
   isOrgOwner: boolean;
   isDepartmentManager: boolean;
 }
+
+export interface OrganizationInvitation {
+  id: string;
+  organizationId: string;
+  email: string;
+  fullName: string;
+  orgRole: OrganizationRole;
+  departmentId?: string | null;
+  deptRole: DepartmentRole;
+  invitedBy?: string | null;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  organizationId: string;
+  departmentId?: string | null;
+  actorUserId?: string | null;
+  entityType: string;
+  entityId: string;
+  action: string;
+  oldData?: any;
+  newData?: any;
+  createdAt: string;
+}

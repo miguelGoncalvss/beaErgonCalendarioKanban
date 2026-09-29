@@ -1,4 +1,13 @@
 import type { Task, DayNote, TaskStatus } from '../types';
+import type { 
+  Department, 
+  DepartmentMember, 
+  DepartmentRole, 
+  OrganizationMember, 
+  OrganizationRole, 
+  OrganizationInvitation, 
+  AuditLog 
+} from '../types/auth';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { calculateBusinessSeconds } from '../utils/timeMetrics';
 
@@ -989,6 +998,307 @@ export const api = {
     }
   },
 
+  // ==================== GESTÃO DE EQUIPE & ACESSOS (FASE 4 & 5) ====================
+
+  async getDepartments(orgId?: string): Promise<Department[]> {
+    if (isSupabaseConfigured()) {
+      let query = supabase.from('departments').select('*').order('name', { ascending: true });
+      if (orgId) {
+        query = query.eq('organization_id', orgId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []).map((d) => ({
+        id: d.id,
+        organizationId: d.organization_id,
+        name: d.name,
+        description: d.description || undefined,
+        active: Boolean(d.active),
+        createdAt: d.created_at,
+        updatedAt: d.updated_at,
+      }));
+    }
+    return [];
+  },
+
+  async createDepartment(orgId: string, name: string, description?: string): Promise<Department> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('departments')
+        .insert({
+          organization_id: orgId,
+          name: name.trim(),
+          description: description?.trim() || null,
+          active: true,
+        })
+        .select('*')
+        .single();
+      if (error) throw error;
+      return {
+        id: data.id,
+        organizationId: data.organization_id,
+        name: data.name,
+        description: data.description || undefined,
+        active: Boolean(data.active),
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    }
+    throw new Error('Supabase não configurado');
+  },
+
+  async updateDepartment(departmentId: string, updates: { name?: string; description?: string; active?: boolean }): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase
+        .from('departments')
+        .update({
+          ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
+          ...(updates.description !== undefined ? { description: updates.description.trim() } : {}),
+          ...(updates.active !== undefined ? { active: updates.active } : {}),
+        })
+        .eq('id', departmentId);
+      if (error) throw error;
+    }
+  },
+
+  async getOrganizationMembers(orgId: string): Promise<OrganizationMember[]> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('organization_members')
+        .select(`
+          id,
+          organization_id,
+          user_id,
+          role,
+          active,
+          created_at,
+          updated_at,
+          profile:profiles (
+            id,
+            full_name,
+            email,
+            avatar_url,
+            active,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      return (data || []).map((m: any) => ({
+        id: m.id,
+        organizationId: m.organization_id,
+        userId: m.user_id,
+        role: m.role,
+        active: Boolean(m.active),
+        createdAt: m.created_at,
+        updatedAt: m.updated_at,
+        profile: m.profile ? {
+          id: m.profile.id,
+          fullName: m.profile.full_name,
+          email: m.profile.email,
+          avatarUrl: m.profile.avatar_url,
+          active: Boolean(m.profile.active),
+          createdAt: m.profile.created_at,
+          updatedAt: m.profile.updated_at,
+        } : undefined,
+      }));
+    }
+    return [];
+  },
+
+  async updateMemberRole(memberId: string, newRole: OrganizationRole): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.rpc('admin_update_member_role', {
+        p_member_id: memberId,
+        p_new_role: newRole,
+      });
+      if (error) throw error;
+    }
+  },
+
+  async toggleMemberActive(memberId: string, active: boolean): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.rpc('admin_toggle_member_active', {
+        p_member_id: memberId,
+        p_active: active,
+      });
+      if (error) throw error;
+    }
+  },
+
+  async getAllDepartmentMembers(orgId: string): Promise<DepartmentMember[]> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('department_members')
+        .select(`
+          id,
+          department_id,
+          user_id,
+          role,
+          active,
+          joined_at,
+          updated_at,
+          department:departments!inner (
+            id,
+            organization_id,
+            name,
+            active
+          ),
+          profile:profiles (
+            id,
+            full_name,
+            email,
+            avatar_url
+          )
+        `)
+        .eq('department.organization_id', orgId);
+
+      if (error) throw error;
+
+      return (data || []).map((dm: any) => ({
+        id: dm.id,
+        departmentId: dm.department_id,
+        userId: dm.user_id,
+        role: dm.role,
+        active: Boolean(dm.active),
+        joinedAt: dm.joined_at,
+        updatedAt: dm.updated_at,
+        department: dm.department ? {
+          id: dm.department.id,
+          organizationId: dm.department.organization_id,
+          name: dm.department.name,
+          active: Boolean(dm.department.active),
+          createdAt: '',
+          updatedAt: '',
+        } : undefined,
+        profile: dm.profile ? {
+          id: dm.profile.id,
+          fullName: dm.profile.full_name,
+          email: dm.profile.email,
+          avatarUrl: dm.profile.avatar_url,
+          active: true,
+          createdAt: '',
+          updatedAt: '',
+        } : undefined,
+      }));
+    }
+    return [];
+  },
+
+  async assignDepartmentMember(departmentId: string, userId: string, role: DepartmentRole = 'member'): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase
+        .from('department_members')
+        .upsert({
+          department_id: departmentId,
+          user_id: userId,
+          role,
+          active: true,
+        }, { onConflict: 'department_id,user_id' });
+      if (error) throw error;
+    }
+  },
+
+  async removeDepartmentMember(deptMemberId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase
+        .from('department_members')
+        .delete()
+        .eq('id', deptMemberId);
+      if (error) throw error;
+    }
+  },
+
+  async getInvitations(orgId: string): Promise<OrganizationInvitation[]> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('organization_invitations')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []).map((inv: any) => ({
+        id: inv.id,
+        organizationId: inv.organization_id,
+        email: inv.email,
+        fullName: inv.full_name,
+        orgRole: inv.org_role,
+        departmentId: inv.department_id,
+        deptRole: inv.dept_role,
+        invitedBy: inv.invited_by,
+        status: inv.status,
+        expiresAt: inv.expires_at,
+        createdAt: inv.created_at,
+        updatedAt: inv.updated_at,
+      }));
+    }
+    return [];
+  },
+
+  async inviteOrAddMember(params: {
+    organizationId: string;
+    email: string;
+    fullName: string;
+    orgRole: OrganizationRole;
+    departmentId?: string;
+    deptRole?: DepartmentRole;
+  }): Promise<{ status: string; message: string }> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.rpc('admin_invite_or_add_member', {
+        p_org_id: params.organizationId,
+        p_email: params.email,
+        p_full_name: params.fullName,
+        p_org_role: params.orgRole,
+        p_dept_id: params.departmentId || null,
+        p_dept_role: params.deptRole || 'member',
+      });
+      if (error) throw error;
+      return data;
+    }
+    throw new Error('Supabase não configurado');
+  },
+
+  async revokeInvitation(invitationId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase
+        .from('organization_invitations')
+        .update({ status: 'revoked' })
+        .eq('id', invitationId);
+      if (error) throw error;
+    }
+  },
+
+  async getAuditLogs(orgId: string, limit: number = 50): Promise<AuditLog[]> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return (data || []).map((log: any) => ({
+        id: log.id,
+        organizationId: log.organization_id,
+        departmentId: log.department_id,
+        actorUserId: log.actor_user_id,
+        entityType: log.entity_type,
+        entityId: log.entity_id,
+        action: log.action,
+        oldData: log.old_data,
+        newData: log.new_data,
+        createdAt: log.created_at,
+      }));
+    }
+    return [];
+  },
+
   // ==================== TEMPO REAL (SUPABASE REALTIME) ====================
   subscribeToRealtime(onSync: () => void): () => void {
     if (!isSupabaseConfigured()) return () => {};
@@ -1002,6 +1312,15 @@ export const api = {
         onSync();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => {
+        onSync();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => {
+        onSync();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'department_members' }, () => {
+        onSync();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'organization_members' }, () => {
         onSync();
       })
       .subscribe();
