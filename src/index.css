@@ -106,3 +106,30 @@
 .animate-fadeOut {
   animation: fadeOut 0.25s ease-out forwards;
 }
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(10px);
+  }
+}
+
+.animate-float {
+  animation: float 4.5s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: floatReverse 6s ease-in-out infinite;
+}
+
