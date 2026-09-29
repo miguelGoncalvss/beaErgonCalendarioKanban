@@ -9,12 +9,10 @@ import {
   KeyRound, 
   ArrowLeft,
   Eye,
-  EyeOff,
-  Sparkles,
-  Clock,
-  Users
+  EyeOff
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { CRTWarp } from './CRTWarp';
 
 export const LoginScreen: React.FC = () => {
   const { 
@@ -113,27 +111,13 @@ export const LoginScreen: React.FC = () => {
       <div className="w-full lg:w-1/2 min-h-screen flex flex-col justify-between p-6 sm:p-10 lg:p-14 bg-white z-10 shadow-xl lg:shadow-none border-r border-slate-200/80">
         
         {/* Top Header / Logo */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-400 text-[#0d345e] font-black text-xl flex items-center justify-center shadow-xs border border-amber-300">
-              E
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-black tracking-tight text-[#0d345e] m-0">
-                  ERGON
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#0d345e] text-amber-300">
-                  Contabilidade
-                </span>
-              </div>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-400 text-[#0d345e] font-black text-xl flex items-center justify-center shadow-xs border border-amber-300">
+            E
           </div>
-
-          <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Sistema Seguro</span>
-          </div>
+          <span className="text-2xl font-black tracking-tight text-[#0d345e] m-0">
+            ERGON
+          </span>
         </div>
 
         {/* Center Form Container */}
@@ -368,134 +352,39 @@ export const LoginScreen: React.FC = () => {
 
         {/* Bottom Footer Info */}
         <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 font-medium">
-          <div className="flex items-center gap-1.5 text-slate-600">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Acesso Criptografado & Isolado</span>
-          </div>
-          <span>Ergon Contabilidade © 2026</span>
+          <span className="text-slate-500">
+            Acesso Criptografado & Isolado
+          </span>
+          <span>Ergon © 2026</span>
         </div>
 
       </div>
 
       {/* ======================================================== */}
-      {/* LADO DIREITO: ARTE & ANIMAÇÃO VISUAL MINIMALISTA (ERGON)  */}
+      {/* LADO DIREITO: ANIMAÇÃO CRT WARP (REACT BITS)             */}
       {/* ======================================================== */}
-      <div className="hidden lg:flex lg:w-1/2 min-h-screen bg-gradient-to-br from-[#06182c] via-[#0d345e] to-[#04101e] text-white flex-col justify-between p-12 lg:p-16 relative overflow-hidden">
-        
-        {/* Luzes de fundo com blur suave */}
-        <div className="absolute top-1/4 -right-20 w-96 h-96 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
-        
-        {/* Grade de fundo geométrica sutil */}
-        <div 
-          className="absolute inset-0 pointer-events-none opacity-20"
-          style={{
-            backgroundImage: `radial-gradient(circle, rgba(245, 158, 11, 0.25) 1px, transparent 1px)`,
-            backgroundSize: '32px 32px'
-          }}
+      <div className="hidden lg:block lg:w-1/2 min-h-screen h-full relative overflow-hidden bg-[#05010a]">
+        <CRTWarp
+          color="#c755f7"
+          backgroundColor="#05010a"
+          speed={0.5}
+          curvature={0.25}
+          scanlineStrength={0.25}
+          scanlineFrequency={200}
+          waveAmplitude={0.3}
+          waveFrequency={2.5}
+          bloom={1.5}
+          bloomRadius={1}
+          noise={0.1}
+          vignette={0}
+          brightness={1.25}
+          pixelation={1}
+          rgbShift={0.015}
+          mouseReact={true}
+          mouseStrength={0.5}
+          dpr={1}
+          fps={30}
         />
-
-        {/* Topo do lado direito */}
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-xs font-semibold text-amber-300">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Sistema Operacional Ergon 2.0</span>
-          </div>
-          <span className="text-xs text-blue-200/70 font-medium">
-            Novembro 2026
-          </span>
-        </div>
-
-        {/* Centro: Composição artística minimalista com cards flutuantes suaves */}
-        <div className="relative z-10 my-auto py-12 flex flex-col items-center justify-center">
-          
-          {/* Círculo Central com Monograma em Glow */}
-          <div className="relative mb-8 flex items-center justify-center">
-            {/* Anéis Externos Pulsantes */}
-            <div className="absolute w-36 h-36 rounded-full border border-amber-400/30 animate-pulse pointer-events-none" />
-            <div className="absolute w-48 h-48 rounded-full border border-blue-400/15 pointer-events-none" />
-            
-            {/* Emblema Ergon */}
-            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-300 via-amber-400 to-amber-500 text-[#0d345e] font-black text-5xl flex items-center justify-center shadow-2xl border-2 border-amber-200">
-              E
-            </div>
-          </div>
-
-          <div className="text-center max-w-sm mb-8">
-            <h2 className="text-2xl font-black tracking-tight text-white mb-2">
-              Sincronia & Produtividade
-            </h2>
-            <p className="text-xs text-blue-200/80 leading-relaxed font-normal">
-              Controle absoluto de prazos contábeis, passagens de bastão em tempo real e auditoria de SLAs.
-            </p>
-          </div>
-
-          {/* Cards flutuantes com animação CSS suave */}
-          <div className="w-full max-w-sm space-y-3 relative">
-            
-            {/* Card 1: Passagem de Bastão (Bea & Vini) */}
-            <div className="animate-float p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center shrink-0">
-                  <Users className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-white">Bea ⇄ Vini</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  </div>
-                  <p className="text-[10.5px] text-blue-200/80 m-0">Passagem de bastão em tempo real</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                Sincronizado
-              </span>
-            </div>
-
-            {/* Card 2: Horário Comercial & SLA */}
-            <div className="animate-float-delayed p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-400/20 border border-blue-400/40 text-blue-200 flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4 text-amber-300" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-white">SLA Útil (08h às 17h)</span>
-                  <p className="text-[10.5px] text-blue-200/80 m-0">98.8% de pontualidade nas entregas</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                Em Dia
-              </span>
-            </div>
-
-            {/* Card 3: Indicadores Rápidos */}
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-around text-center">
-              <div>
-                <span className="text-sm font-black text-amber-400">100%</span>
-                <p className="text-[9.5px] text-blue-200/70 uppercase tracking-wider font-semibold">Segurança RLS</p>
-              </div>
-              <div className="h-6 w-px bg-white/10" />
-              <div>
-                <span className="text-sm font-black text-white">Multissetor</span>
-                <p className="text-[9.5px] text-blue-200/70 uppercase tracking-wider font-semibold">Contábil & Fiscal</p>
-              </div>
-              <div className="h-6 w-px bg-white/10" />
-              <div>
-                <span className="text-sm font-black text-emerald-400">Realtime</span>
-                <p className="text-[9.5px] text-blue-200/70 uppercase tracking-wider font-semibold">Sem conflitos</p>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* Rodapé do lado direito */}
-        <div className="relative z-10 flex items-center justify-between text-xs text-blue-200/60 font-medium pt-4 border-t border-white/10">
-          <span>Gestão Operacional de Alta Precisão</span>
-          <span>Ergon Contabilidade</span>
-        </div>
-
       </div>
 
     </div>
