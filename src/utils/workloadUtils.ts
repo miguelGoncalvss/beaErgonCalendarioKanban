@@ -1,8 +1,23 @@
 import type { Task } from '../types';
-import { formatDateKey } from './dateUtils';
+import { formatDateKey } from './dateUtils.ts';
+
+export interface KnownOperatorInfo {
+  id?: string;
+  name: string;
+  displayName?: string;
+  roleTitle?: string;
+  departmentName?: string;
+  avatarUrl?: string;
+  colorTheme?: string;
+}
 
 export interface OperatorWorkload {
-  operator: 'Bea' | 'Vini';
+  operator: string;
+  displayName?: string;
+  roleTitle?: string;
+  departmentName?: string;
+  avatarUrl?: string;
+  colorTheme?: string;
   totalActive: number;
   todoCount: number;
   inProgressCount: number;
@@ -33,6 +48,7 @@ export interface ClientWorkload {
 export interface WorkloadSummary {
   totalActive: number;
   totalCompleted: number;
+  operators: OperatorWorkload[];
   bea: OperatorWorkload;
   vini: OperatorWorkload;
   dueDates: DueDatesRadar;
@@ -79,6 +95,7 @@ export function getWorkloadSummary(
     includeFuture?: boolean;
     currentYear?: number;
     currentMonth?: number;
+    knownOperators?: (string | KnownOperatorInfo)[];
   }
 ): WorkloadSummary {
   const now = new Date();
@@ -101,42 +118,134 @@ export function getWorkloadSummary(
   // Separa tarefas ativas (não concluídas) e concluídas
   const activeTasks = effectiveTasks.filter((t) => t.status !== 'done');
   const completedTasks = effectiveTasks.filter((t) => t.status === 'done');
-
-  // Carga Bea
-  const beaActive = activeTasks.filter((t) => (t.assignee || 'Bea') === 'Bea');
-  const beaCompleted = completedTasks.filter((t) => (t.assignee || 'Bea') === 'Bea');
-
-  // Carga Vini
-  const viniActive = activeTasks.filter((t) => t.assignee === 'Vini');
-  const viniCompleted = completedTasks.filter((t) => t.assignee === 'Vini');
-
   const totalActiveCount = activeTasks.length;
-  const beaActiveCount = beaActive.length;
-  const viniActiveCount = viniActive.length;
 
-  const beaPercent = totalActiveCount > 0 ? Math.round((beaActiveCount / totalActiveCount) * 100) : 50;
-  const viniPercent = totalActiveCount > 0 ? 100 - beaPercent : 50;
+  // Mapa de operadores cadastrados / identificados
+  const operatorMap = new Map<string, KnownOperatorInfo>();
+  operatorMap.set('Bea', {
+    name: 'Bea',
+    displayName: 'Beatriz (Bea)',
+    roleTitle: 'Operadora Contábil & Fiscal',
+    colorTheme: 'purple',
+  });
+  operatorMap.set('Vini', {
+    name: 'Vini',
+    displayName: 'Vinicius (Vini)',
+    roleTitle: 'Operador Contábil & Fiscal',
+    colorTheme: 'sky',
+  });
 
-  const beaWorkload: OperatorWorkload = {
+  // Registra operadores fornecidos explicitamente (ex: membros da organização / chefes)
+  if (options?.knownOperators && Array.isArray(options.knownOperators)) {
+    for (const op of options.knownOperators) {
+      if (typeof op === 'string') {
+        const trimmed = op.trim();
+        if (trimmed && !operatorMap.has(trimmed)) {
+          operatorMap.set(trimmed, {
+            name: trimmed,
+            displayName: trimmed,
+            roleTitle: 'Membro da Equipe',
+          });
+        }
+      } else if (op && typeof op === 'object' && 'name' in op && op.name) {
+        const opObj = op as KnownOperatorInfo;
+        const trimmedName = opObj.name.trim();
+        if (trimmedName) {
+          const existing = operatorMap.get(trimmedName) || { name: trimmedName, roleTitle: 'Membro da Equipe' };
+          operatorMap.set(trimmedName, {
+            ...existing,
+            ...opObj,
+            name: trimmedName,
+            displayName: opObj.displayName || trimmedName,
+            roleTitle: opObj.roleTitle || existing.roleTitle || 'Membro da Equipe',
+          });
+        }
+      }
+    }
+  }
+
+  // Registra operadores presentes nas tarefas que ainda não estejam no mapa
+  for (const t of safeTasks) {
+    const rawAssignee = t.assignee?.trim();
+    if (rawAssignee && !operatorMap.has(rawAssignee)) {
+      operatorMap.set(rawAssignee, {
+        name: rawAssignee,
+        displayName: rawAssignee,
+        roleTitle: 'Membro da Equipe',
+      });
+    }
+  }
+
+  // Paleta de temas de cores para operadores adicionais
+  const extraThemes = ['emerald', 'amber', 'indigo', 'rose', 'teal', 'cyan', 'violet'];
+  let colorIdx = 0;
+
+  // Calcula estatísticas para todos os operadores identificados
+  const operators: OperatorWorkload[] = Array.from(operatorMap.values()).map((info) => {
+    const opName = info.name;
+
+    // Tarefas ativas e concluídas deste operador (tarefas sem assignee contam para Bea por padrão)
+    const opActive = activeTasks.filter((t) => {
+      const assigned = t.assignee?.trim() || 'Bea';
+      return assigned === opName;
+    });
+
+    const opCompleted = completedTasks.filter((t) => {
+      const assigned = t.assignee?.trim() || 'Bea';
+      return assigned === opName;
+    });
+
+    const opActiveCount = opActive.length;
+    const percentage = totalActiveCount > 0 
+      ? Math.round((opActiveCount / totalActiveCount) * 100) 
+      : 0;
+
+    const theme = info.colorTheme || extraThemes[colorIdx++ % extraThemes.length];
+
+    return {
+      operator: opName,
+      displayName: info.displayName || opName,
+      roleTitle: info.roleTitle || 'Membro da Equipe',
+      departmentName: info.departmentName,
+      avatarUrl: info.avatarUrl,
+      colorTheme: theme,
+      totalActive: opActiveCount,
+      todoCount: opActive.filter((t) => t.status === 'todo').length,
+      inProgressCount: opActive.filter((t) => t.status === 'in_progress').length,
+      delayedCount: opActive.filter((t) => t.status === 'delayed' || (t.dueDate && t.dueDate < todayKey)).length,
+      pausedCount: opActive.filter((t) => t.isPaused).length,
+      completedCount: opCompleted.length,
+      percentageOfActive: percentage,
+    };
+  });
+
+  // Garante objetos de compatibilidade legada para Bea e Vini
+  const beaWorkload = operators.find((o) => o.operator === 'Bea') || {
     operator: 'Bea',
-    totalActive: beaActiveCount,
-    todoCount: beaActive.filter((t) => t.status === 'todo').length,
-    inProgressCount: beaActive.filter((t) => t.status === 'in_progress').length,
-    delayedCount: beaActive.filter((t) => t.status === 'delayed' || (t.dueDate && t.dueDate < todayKey)).length,
-    pausedCount: beaActive.filter((t) => t.isPaused).length,
-    completedCount: beaCompleted.length,
-    percentageOfActive: beaPercent,
+    displayName: 'Beatriz (Bea)',
+    roleTitle: 'Operadora Contábil & Fiscal',
+    colorTheme: 'purple',
+    totalActive: 0,
+    todoCount: 0,
+    inProgressCount: 0,
+    delayedCount: 0,
+    pausedCount: 0,
+    completedCount: 0,
+    percentageOfActive: 0,
   };
 
-  const viniWorkload: OperatorWorkload = {
+  const viniWorkload = operators.find((o) => o.operator === 'Vini') || {
     operator: 'Vini',
-    totalActive: viniActiveCount,
-    todoCount: viniActive.filter((t) => t.status === 'todo').length,
-    inProgressCount: viniActive.filter((t) => t.status === 'in_progress').length,
-    delayedCount: viniActive.filter((t) => t.status === 'delayed' || (t.dueDate && t.dueDate < todayKey)).length,
-    pausedCount: viniActive.filter((t) => t.isPaused).length,
-    completedCount: viniCompleted.length,
-    percentageOfActive: viniPercent,
+    displayName: 'Vinicius (Vini)',
+    roleTitle: 'Operador Contábil & Fiscal',
+    colorTheme: 'sky',
+    totalActive: 0,
+    todoCount: 0,
+    inProgressCount: 0,
+    delayedCount: 0,
+    pausedCount: 0,
+    completedCount: 0,
+    percentageOfActive: 0,
   };
 
   // Radar de Vencimentos
@@ -210,9 +319,9 @@ export function getWorkloadSummary(
   // Balanço de carga
   let workloadBalance: 'balanced' | 'bea_heavy' | 'vini_heavy' = 'balanced';
   if (totalActiveCount >= 6) {
-    if (beaPercent >= 65) {
+    if (beaWorkload.percentageOfActive >= 65) {
       workloadBalance = 'bea_heavy';
-    } else if (viniPercent >= 65) {
+    } else if (viniWorkload.percentageOfActive >= 65) {
       workloadBalance = 'vini_heavy';
     }
   }
@@ -220,6 +329,7 @@ export function getWorkloadSummary(
   return {
     totalActive: totalActiveCount,
     totalCompleted: completedTasks.length,
+    operators,
     bea: beaWorkload,
     vini: viniWorkload,
     dueDates: {

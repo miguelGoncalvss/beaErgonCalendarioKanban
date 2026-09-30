@@ -386,11 +386,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           className="flex items-center justify-between text-[9.5px] pt-1 border-t border-slate-200/60 font-mono text-slate-600 cursor-pointer hover:text-[#0d345e] transition"
           title="Clique para ver a auditoria de responsabilidade e passagem de bastão"
         >
-          <span className="flex items-center gap-1 font-sans">
+          <span className="flex items-center gap-1 font-sans truncate">
             <span className="text-slate-400">Tempo:</span>
-            <strong className="text-blue-900">B: {assigneeAudit.bea.formattedBusiness}</strong>
-            <span className="text-slate-300">|</span>
-            <strong className="text-indigo-900">V: {assigneeAudit.vini.formattedBusiness}</strong>
+            {Object.entries(assigneeAudit.byAssignee).slice(0, 3).map(([name, data], idx) => (
+              <React.Fragment key={name}>
+                {idx > 0 && <span className="text-slate-300">|</span>}
+                <strong className={name === 'Bea' ? 'text-blue-900' : name === 'Vini' ? 'text-indigo-900' : 'text-emerald-900'}>
+                  {name.charAt(0)}: {data.formattedBusiness}
+                </strong>
+              </React.Fragment>
+            ))}
           </span>
 
           {assigneeAudit.history.length > 1 && (

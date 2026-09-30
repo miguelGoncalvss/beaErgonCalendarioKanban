@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Plus, 
   Search, 
@@ -90,6 +90,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [defaultColumnStatus, setDefaultColumnStatus] = useState<TaskStatus>('todo');
+
+  const extraAssignees = useMemo(() => {
+    const names = new Set<string>();
+    for (const t of tasks) {
+      const name = t.assignee?.trim();
+      if (name && name !== 'Bea' && name !== 'Vini') {
+        names.add(name);
+      }
+    }
+    return Array.from(names);
+  }, [tasks]);
 
   const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
 
@@ -258,6 +269,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
               Vini
             </button>
+            {extraAssignees.map((op) => (
+              <button
+                key={op}
+                type="button"
+                onClick={() => setAssigneeFilter(op)}
+                className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer text-[11px] flex items-center gap-1 ${
+                  assigneeFilter.toLowerCase() === op.toLowerCase()
+                    ? 'bg-emerald-700 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-emerald-800'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                {op}
+              </button>
+            ))}
             <button
               type="button"
               onClick={() => setAssigneeFilter('paused')}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Calendar, 
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { Task, TaskPriority, TaskStatus, ChecklistItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { api } from '../../services/api';
 import { 
   formatDurationLong, 
   getLiveKanbanDurationSeconds, 
@@ -73,7 +74,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onAddNewCompany,
   onOpenCompanyManager,
 }) => {
-  const { isGlobalAdmin } = useAuth();
+  const { isGlobalAdmin, organization } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
@@ -91,6 +92,61 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [isCreatingCompany, setIsCreatingCompany] = useState(false);
   const [customCompanyName, setCustomCompanyName] = useState('');
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [orgMembers, setOrgMembers] = useState<Array<{ name: string; roleTitle?: string }>>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    const fetchMembers = async () => {
+      if (organization?.id) {
+        try {
+          const membersData = await api.getOrganizationMembers(organization.id);
+          if (isMounted) {
+            const list: Array<{ name: string; roleTitle?: string }> = [];
+            for (const m of membersData) {
+              if (!m.active) continue;
+              const name = m.profile?.fullName?.trim() || m.profile?.email?.split('@')[0] || '';
+              if (name) {
+                list.push({
+                  name,
+                  roleTitle: m.role === 'owner' ? 'Owner' : m.role === 'admin' ? 'Admin' : 'Membro',
+                });
+              }
+            }
+            setOrgMembers(list);
+          }
+        } catch (e) {
+          console.warn('Erro ao carregar membros no TaskModal:', e);
+        }
+      }
+    };
+    fetchMembers();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, organization?.id]);
+
+  const availableAssignees = useMemo(() => {
+    const list: Array<{ name: string; roleTitle?: string }> = [
+      { name: 'Bea', roleTitle: 'Operadora Contábil' },
+      { name: 'Vini', roleTitle: 'Operador Contábil' },
+    ];
+    const setNames = new Set(['bea', 'vini']);
+
+    for (const m of orgMembers) {
+      const lower = m.name.toLowerCase();
+      if (!setNames.has(lower) && lower !== 'beatriz' && lower !== 'vinicius') {
+        setNames.add(lower);
+        list.push(m);
+      }
+    }
+
+    if (assignee && !setNames.has(assignee.toLowerCase())) {
+      list.push({ name: assignee, roleTitle: 'Atribuído' });
+    }
+
+    return list;
+  }, [orgMembers, assignee]);
 
   useEffect(() => {
     if (editingTask) {
@@ -396,65 +452,76 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setAssignee('Bea')}
-                className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition cursor-pointer ${
-                  assignee === 'Bea'
-                    ? 'bg-[#0d345e] text-white border-[#08223f] shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${assignee === 'Bea' ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                <span>Bea</span>
-                {assignee === 'Bea' && <span className="text-[10px] opacity-80">(ativo)</span>}
-              </button>
+            {/* Seletor dinâmico de responsável */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {availableAssignees.slice(0, 4).map((item) => {
+                  const isSelected = assignee === item.name;
+                  return (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() => setAssignee(item.name)}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#0d345e] text-white border-[#08223f] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                      <span>{item.name}</span>
+                      {isSelected && <span className="text-[10px] opacity-80">(ativo)</span>}
+                    </button>
+                  );
+                })}
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setAssignee('Vini')}
-                className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition cursor-pointer ${
-                  assignee === 'Vini'
-                    ? 'bg-indigo-900 text-white border-indigo-950 shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${assignee === 'Vini' ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                <span>Vini</span>
-                {assignee === 'Vini' && <span className="text-[10px] opacity-80">(ativo)</span>}
-              </button>
+              {availableAssignees.length > 2 && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <span className="text-[11px] text-slate-500 font-medium">Ou atribuir a outro membro/chefe:</span>
+                  <select
+                    value={assignee}
+                    onChange={(e) => setAssignee(e.target.value)}
+                    className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 hover:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-[#0d345e] cursor-pointer"
+                  >
+                    {availableAssignees.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name} {item.roleTitle ? `(${item.roleTitle})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Métricas Acumuladas de Tempo por Operador */}
             {assigneeAudit && (
-              <div className="grid grid-cols-3 gap-1.5 pt-1 text-[10px]">
-                <div className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
-                  <span className="block text-[9px] text-slate-500 font-bold uppercase">Tempo com Bea</span>
-                  <span className="font-mono font-black text-[#0d345e] block text-xs">
-                    {assigneeAudit.bea.formattedBusiness}
-                  </span>
-                  <span className="text-[9px] text-slate-400 font-mono">
-                    {assigneeAudit.bea.formattedElapsed} corrido
-                  </span>
-                </div>
-                <div className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
-                  <span className="block text-[9px] text-slate-500 font-bold uppercase">Tempo com Vini</span>
-                  <span className="font-mono font-black text-indigo-900 block text-xs">
-                    {assigneeAudit.vini.formattedBusiness}
-                  </span>
-                  <span className="text-[9px] text-slate-400 font-mono">
-                    {assigneeAudit.vini.formattedElapsed} corrido
-                  </span>
-                </div>
-                <div className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
-                  <span className="block text-[9px] text-slate-500 font-bold uppercase">Aguardando Cliente</span>
-                  <span className="font-mono font-black text-amber-700 block text-xs">
-                    {assigneeAudit.totalWaitingClient.formattedBusiness}
-                  </span>
-                  <span className="text-[9px] text-slate-400">
-                    SLA congelado
-                  </span>
+              <div className="space-y-1.5 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[10px]">
+                  {Object.values(assigneeAudit.byAssignee).map((summary) => (
+                    <div key={summary.assignee} className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
+                      <span className="block text-[9px] text-slate-500 font-bold uppercase truncate">
+                        Tempo com {summary.assignee}
+                      </span>
+                      <span className="font-mono font-black text-[#0d345e] block text-xs">
+                        {summary.formattedBusiness}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-mono">
+                        {summary.formattedElapsed} corrido
+                      </span>
+                    </div>
+                  ))}
+                  <div className="bg-white/90 p-2 rounded-lg border border-slate-200 shadow-2xs">
+                    <span className="block text-[9px] text-slate-500 font-bold uppercase">
+                      Aguardando Cliente
+                    </span>
+                    <span className="font-mono font-black text-amber-700 block text-xs">
+                      {assigneeAudit.totalWaitingClient.formattedBusiness}
+                    </span>
+                    <span className="text-[9px] text-slate-400">
+                      SLA congelado
+                    </span>
+                  </div>
                 </div>
               </div>
             )}

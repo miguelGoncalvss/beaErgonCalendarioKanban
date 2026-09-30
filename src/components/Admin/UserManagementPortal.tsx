@@ -59,6 +59,103 @@ export type AdminSection =
   | 'sla_metrics' 
   | 'profile';
 
+const getThemeClasses = (colorTheme?: string) => {
+  switch (colorTheme) {
+    case 'sky':
+      return {
+        cardBorder: 'border-sky-200',
+        cardBg: 'from-sky-50 via-white to-sky-50/30',
+        avatarBg: 'bg-sky-600',
+        titleColor: 'text-sky-950',
+        subColor: 'text-sky-700',
+        barBg: 'bg-sky-100',
+        barFill: 'bg-sky-600',
+        numColor: 'text-sky-950',
+        filterBg: 'bg-sky-600 text-white',
+        filterInactive: 'bg-sky-50 text-sky-800 hover:bg-sky-100',
+      };
+    case 'emerald':
+      return {
+        cardBorder: 'border-emerald-200',
+        cardBg: 'from-emerald-50 via-white to-emerald-50/30',
+        avatarBg: 'bg-emerald-600',
+        titleColor: 'text-emerald-950',
+        subColor: 'text-emerald-700',
+        barBg: 'bg-emerald-100',
+        barFill: 'bg-emerald-600',
+        numColor: 'text-emerald-950',
+        filterBg: 'bg-emerald-600 text-white',
+        filterInactive: 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+      };
+    case 'amber':
+      return {
+        cardBorder: 'border-amber-200',
+        cardBg: 'from-amber-50 via-white to-amber-50/30',
+        avatarBg: 'bg-amber-600',
+        titleColor: 'text-amber-950',
+        subColor: 'text-amber-700',
+        barBg: 'bg-amber-100',
+        barFill: 'bg-amber-600',
+        numColor: 'text-amber-950',
+        filterBg: 'bg-amber-600 text-white',
+        filterInactive: 'bg-amber-50 text-amber-800 hover:bg-amber-100',
+      };
+    case 'indigo':
+      return {
+        cardBorder: 'border-indigo-200',
+        cardBg: 'from-indigo-50 via-white to-indigo-50/30',
+        avatarBg: 'bg-indigo-600',
+        titleColor: 'text-indigo-950',
+        subColor: 'text-indigo-700',
+        barBg: 'bg-indigo-100',
+        barFill: 'bg-indigo-600',
+        numColor: 'text-indigo-950',
+        filterBg: 'bg-indigo-600 text-white',
+        filterInactive: 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100',
+      };
+    case 'rose':
+      return {
+        cardBorder: 'border-rose-200',
+        cardBg: 'from-rose-50 via-white to-rose-50/30',
+        avatarBg: 'bg-rose-600',
+        titleColor: 'text-rose-950',
+        subColor: 'text-rose-700',
+        barBg: 'bg-rose-100',
+        barFill: 'bg-rose-600',
+        numColor: 'text-rose-950',
+        filterBg: 'bg-rose-600 text-white',
+        filterInactive: 'bg-rose-50 text-rose-800 hover:bg-rose-100',
+      };
+    case 'teal':
+      return {
+        cardBorder: 'border-teal-200',
+        cardBg: 'from-teal-50 via-white to-teal-50/30',
+        avatarBg: 'bg-teal-600',
+        titleColor: 'text-teal-950',
+        subColor: 'text-teal-700',
+        barBg: 'bg-teal-100',
+        barFill: 'bg-teal-600',
+        numColor: 'text-teal-950',
+        filterBg: 'bg-teal-600 text-white',
+        filterInactive: 'bg-teal-50 text-teal-800 hover:bg-teal-100',
+      };
+    case 'purple':
+    default:
+      return {
+        cardBorder: 'border-purple-200',
+        cardBg: 'from-purple-50 via-white to-purple-50/30',
+        avatarBg: 'bg-purple-600',
+        titleColor: 'text-purple-950',
+        subColor: 'text-purple-700',
+        barBg: 'bg-purple-100',
+        barFill: 'bg-purple-600',
+        numColor: 'text-purple-950',
+        filterBg: 'bg-purple-600 text-white',
+        filterInactive: 'bg-purple-50 text-purple-800 hover:bg-purple-100',
+      };
+  }
+};
+
 interface UserManagementPortalProps {
   onBackToWorkspace: () => void;
   initialSection?: AdminSection;
@@ -316,19 +413,89 @@ export const UserManagementPortal: React.FC<UserManagementPortalProps> = ({
   }, [members, showInactiveMembers, memberSearchQuery]);
 
   // ============================================================================
-  // ESTADOS E DADOS DE PRODUTIVIDADE OPERACIONAL (BEA & VINI)
+  // ESTADOS E DADOS DE PRODUTIVIDADE OPERACIONAL (EQUIPE ERGON & SETORES)
   // ============================================================================
-  type WorkloadFilter = 'all' | 'bea' | 'vini' | 'overdue' | 'today' | 'tomorrow' | 'this_week' | 'paused';
+  type WorkloadFilter = 'all' | 'overdue' | 'today' | 'tomorrow' | 'this_week' | 'paused' | string;
   const [includeFuture, setIncludeFuture] = useState(false);
   const [workloadFilter, setWorkloadFilter] = useState<WorkloadFilter>('all');
+
+  // Mapeia operadores conhecidos a partir dos membros cadastrados e seus setores
+  const knownOperators = useMemo(() => {
+    const list: { name: string; displayName?: string; roleTitle?: string; departmentName?: string; avatarUrl?: string }[] = [
+      {
+        name: 'Bea',
+        displayName: 'Beatriz (Bea)',
+        roleTitle: 'Operadora Contábil & Fiscal',
+      },
+      {
+        name: 'Vini',
+        displayName: 'Vinicius (Vini)',
+        roleTitle: 'Operador Contábil & Fiscal',
+      },
+    ];
+
+    const registeredKeys = new Set(['bea', 'vini']);
+    const deptMap = new Map(departments.map((d) => [d.id, d.name]));
+
+    // Mapeia chefias e vínculos de setor por userId
+    const userDeptRoles = new Map<string, { role: DepartmentRole; deptName: string }[]>();
+    for (const dm of deptMembers) {
+      const current = userDeptRoles.get(dm.userId) || [];
+      const deptName = deptMap.get(dm.departmentId) || 'Setor';
+      current.push({ role: dm.role, deptName });
+      userDeptRoles.set(dm.userId, current);
+    }
+
+    for (const m of members) {
+      if (!m.active) continue;
+      const rawName = m.profile?.fullName?.trim() || m.profile?.email?.split('@')[0] || '';
+      if (!rawName) continue;
+
+      const lower = rawName.toLowerCase();
+      if (lower === 'beatriz' || lower === 'bea' || lower === 'vinicius' || lower === 'vini') {
+        continue;
+      }
+
+      if (!registeredKeys.has(lower)) {
+        registeredKeys.add(lower);
+        const deptRoles = userDeptRoles.get(m.userId) || [];
+        const managerRole = deptRoles.find((r) => r.role === 'manager');
+        let roleTitle = 'Membro da Equipe';
+        let departmentName = '';
+
+        if (m.role === 'owner') {
+          roleTitle = 'Proprietário (Owner)';
+        } else if (managerRole) {
+          roleTitle = `Chefe de Setor (${managerRole.deptName})`;
+          departmentName = managerRole.deptName;
+        } else if (m.role === 'admin') {
+          roleTitle = 'Administrador';
+        } else if (deptRoles.length > 0) {
+          departmentName = deptRoles.map((r) => r.deptName).join(', ');
+          roleTitle = `Operador (${departmentName})`;
+        }
+
+        list.push({
+          name: rawName,
+          displayName: rawName,
+          roleTitle,
+          departmentName,
+          avatarUrl: m.profile?.avatarUrl,
+        });
+      }
+    }
+
+    return list;
+  }, [members, departments, deptMembers]);
 
   const workloadSummary = useMemo(() => {
     return getWorkloadSummary(tasks, {
       includeFuture,
       currentYear,
       currentMonth,
+      knownOperators,
     });
-  }, [tasks, includeFuture, currentYear, currentMonth]);
+  }, [tasks, includeFuture, currentYear, currentMonth, knownOperators]);
 
   const filteredWorkloadTasks = useMemo(() => {
     const baseTasks = includeFuture
@@ -343,11 +510,8 @@ export const UserManagementPortal: React.FC<UserManagementPortalProps> = ({
 
     const activeList = baseTasks.filter((t) => t.status !== 'done');
 
-    if (workloadFilter === 'bea') {
-      return activeList.filter((t: Task) => (t.assignee || 'Bea') === 'Bea');
-    }
-    if (workloadFilter === 'vini') {
-      return activeList.filter((t: Task) => t.assignee === 'Vini');
+    if (workloadFilter === 'all') {
+      return activeList;
     }
     if (workloadFilter === 'overdue') {
       return workloadSummary.dueDates.overdue;
@@ -365,11 +529,15 @@ export const UserManagementPortal: React.FC<UserManagementPortalProps> = ({
       return activeList.filter((t: Task) => Boolean(t.isPaused));
     }
 
-    return activeList;
+    // Filtro por operador específico (Bea, Vini, ou qualquer novo usuário/chefe)
+    return activeList.filter((t: Task) => {
+      const assigned = (t.assignee?.trim() || 'Bea').toLowerCase();
+      return assigned === workloadFilter.toLowerCase();
+    });
   }, [includeFuture, tasks, workloadSummary, workloadFilter]);
 
-  const handleQuickHandoff = (task: Task, newAssignee: 'Bea' | 'Vini') => {
-    if (!onUpdateTask || task.assignee === newAssignee) return;
+  const handleQuickHandoff = (task: Task, newAssignee: string) => {
+    if (!onUpdateTask || (task.assignee || 'Bea') === newAssignee) return;
     const nowIso = new Date().toISOString();
     const updatedHistory = createHandoffTransition(task, newAssignee, nowIso);
     onUpdateTask({
@@ -616,7 +784,7 @@ export const UserManagementPortal: React.FC<UserManagementPortalProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Shield className="w-4 h-4" />
-                <span>Equipe Ergon (Bea & Vini)</span>
+                <span>Carga de Trabalho da Equipe</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 opacity-60" />
             </button>
@@ -1306,101 +1474,80 @@ export const UserManagementPortal: React.FC<UserManagementPortalProps> = ({
                 </div>
               </div>
 
-              {/* Painel de Comparativo: Beatriz (Bea) vs. Vinicius (Vini) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Card Beatriz */}
-                <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-50 via-white to-purple-50/30 border border-purple-200 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white font-black text-lg flex items-center justify-center shadow-sm">
-                        B
+              {/* Painel de Produtividade & Carga por Operador / Chefe de Setor */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {workloadSummary.operators.map((op) => {
+                  const theme = getThemeClasses(op.colorTheme);
+                  const isManager = op.roleTitle?.includes('Chefe de Setor');
+                  const isOwner = op.roleTitle?.includes('Proprietário') || op.roleTitle?.includes('Owner');
+
+                  return (
+                    <div
+                      key={op.operator}
+                      className={`p-6 rounded-2xl bg-gradient-to-br ${theme.cardBg} border ${theme.cardBorder} shadow-xs space-y-4 relative overflow-hidden`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-2xl ${theme.avatarBg} text-white font-black text-lg flex items-center justify-center shadow-sm shrink-0`}>
+                            {op.displayName ? op.displayName.charAt(0).toUpperCase() : op.operator.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h3 className={`text-base font-black ${theme.titleColor}`}>
+                                {op.displayName || op.operator}
+                              </h3>
+                              {isManager && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0d345e] text-amber-300 border border-blue-900 shadow-2xs">
+                                  Chefe de Setor
+                                </span>
+                              )}
+                              {isOwner && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-slate-900 shadow-2xs">
+                                  Owner
+                                </span>
+                              )}
+                            </div>
+                            <p className={`text-xs ${theme.subColor} font-medium mt-0.5`}>
+                              {op.roleTitle || 'Membro da Equipe'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className={`text-2xl font-black ${theme.numColor}`}>{op.totalActive}</span>
+                          <span className={`text-xs ${theme.subColor} block font-semibold`}>ativas</span>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-base font-black text-purple-950">Beatriz (Bea)</h3>
-                        <p className="text-xs text-purple-700 font-medium">Operadora Contábil & Fiscal</p>
+
+                      <div className="space-y-1.5">
+                        <div className={`flex justify-between text-xs font-bold ${theme.titleColor}`}>
+                          <span>Carga Relativa ({op.percentageOfActive}%)</span>
+                          <span>{op.completedCount} concluídas</span>
+                        </div>
+                        <div className={`w-full h-2.5 rounded-full ${theme.barBg} overflow-hidden`}>
+                          <div
+                            className={`h-full ${theme.barFill} rounded-full transition-all duration-500`}
+                            style={{ width: `${op.percentageOfActive}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+                        <div className="p-2 rounded-xl bg-white/80 border border-slate-100/80">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Em Andamento</span>
+                          <p className={`text-sm font-black ${theme.titleColor}`}>{op.inProgressCount}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-white/80 border border-slate-100/80">
+                          <span className="text-[10px] font-bold text-rose-500 uppercase">Atrasadas</span>
+                          <p className="text-sm font-black text-rose-600">{op.delayedCount}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-white/80 border border-slate-100/80">
+                          <span className="text-[10px] font-bold text-amber-500 uppercase">Pausadas</span>
+                          <p className="text-sm font-black text-amber-600">{op.pausedCount}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-2xl font-black text-purple-950">{workloadSummary.bea.totalActive}</span>
-                      <span className="text-xs text-purple-700 block font-semibold">ativas</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold text-purple-900">
-                      <span>Carga Relativa ({workloadSummary.bea.percentageOfActive}%)</span>
-                      <span>{workloadSummary.bea.completedCount} concluídas</span>
-                    </div>
-                    <div className="w-full h-2.5 rounded-full bg-purple-100 overflow-hidden">
-                      <div
-                        className="h-full bg-purple-600 rounded-full transition-all duration-500"
-                        style={{ width: `${workloadSummary.bea.percentageOfActive}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-purple-100 text-center">
-                    <div className="p-2 rounded-xl bg-white/80">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Em Andamento</span>
-                      <p className="text-sm font-black text-purple-900">{workloadSummary.bea.inProgressCount}</p>
-                    </div>
-                    <div className="p-2 rounded-xl bg-white/80">
-                      <span className="text-[10px] font-bold text-rose-500 uppercase">Atrasadas</span>
-                      <p className="text-sm font-black text-rose-600">{workloadSummary.bea.delayedCount}</p>
-                    </div>
-                    <div className="p-2 rounded-xl bg-white/80">
-                      <span className="text-[10px] font-bold text-amber-500 uppercase">Pausadas</span>
-                      <p className="text-sm font-black text-amber-600">{workloadSummary.bea.pausedCount}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Vinicius */}
-                <div className="p-6 rounded-2xl bg-gradient-to-br from-sky-50 via-white to-sky-50/30 border border-sky-200 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-sky-600 text-white font-black text-lg flex items-center justify-center shadow-sm">
-                        V
-                      </div>
-                      <div>
-                        <h3 className="text-base font-black text-sky-950">Vinicius (Vini)</h3>
-                        <p className="text-xs text-sky-700 font-medium">Operador Contábil & Fiscal</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-2xl font-black text-sky-950">{workloadSummary.vini.totalActive}</span>
-                      <span className="text-xs text-sky-700 block font-semibold">ativas</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold text-sky-900">
-                      <span>Carga Relativa ({workloadSummary.vini.percentageOfActive}%)</span>
-                      <span>{workloadSummary.vini.completedCount} concluídas</span>
-                    </div>
-                    <div className="w-full h-2.5 rounded-full bg-sky-100 overflow-hidden">
-                      <div
-                        className="h-full bg-sky-600 rounded-full transition-all duration-500"
-                        style={{ width: `${workloadSummary.vini.percentageOfActive}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-sky-100 text-center">
-                    <div className="p-2 rounded-xl bg-white/80">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Em Andamento</span>
-                      <p className="text-sm font-black text-sky-900">{workloadSummary.vini.inProgressCount}</p>
-                    </div>
-                    <div className="p-2 rounded-xl bg-white/80">
-                      <span className="text-[10px] font-bold text-rose-500 uppercase">Atrasadas</span>
-                      <p className="text-sm font-black text-rose-600">{workloadSummary.vini.delayedCount}</p>
-                    </div>
-                    <div className="p-2 rounded-xl bg-white/80">
-                      <span className="text-[10px] font-bold text-amber-500 uppercase">Pausadas</span>
-                      <p className="text-sm font-black text-amber-600">{workloadSummary.vini.pausedCount}</p>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
 
               {/* Filtros Operacionais */}
@@ -1414,22 +1561,24 @@ export const UserManagementPortal: React.FC<UserManagementPortalProps> = ({
                   >
                     Todas ({workloadSummary.totalActive})
                   </button>
-                  <button
-                    onClick={() => setWorkloadFilter('bea')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      workloadFilter === 'bea' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
-                    }`}
-                  >
-                    Bea ({workloadSummary.bea.totalActive})
-                  </button>
-                  <button
-                    onClick={() => setWorkloadFilter('vini')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      workloadFilter === 'vini' ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
-                    }`}
-                  >
-                    Vini ({workloadSummary.vini.totalActive})
-                  </button>
+
+                  {workloadSummary.operators.map((op) => {
+                    const isSelected = workloadFilter.toLowerCase() === op.operator.toLowerCase();
+                    const theme = getThemeClasses(op.colorTheme);
+                    return (
+                      <button
+                        key={op.operator}
+                        onClick={() => setWorkloadFilter(op.operator)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                          isSelected ? theme.filterBg : theme.filterInactive
+                        }`}
+                      >
+                        <span>{op.displayName || op.operator}</span>
+                        <span className="opacity-80 font-normal">({op.totalActive})</span>
+                      </button>
+                    );
+                  })}
+
                   <button
                     onClick={() => setWorkloadFilter('today')}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -1502,22 +1651,41 @@ export const UserManagementPortal: React.FC<UserManagementPortalProps> = ({
 
                         {/* Ações Rápidas de Operação */}
                         <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                             (task.assignee || 'Bea') === 'Bea'
-                              ? 'bg-purple-100 text-purple-900 border border-purple-200'
-                              : 'bg-sky-100 text-sky-900 border border-sky-200'
+                              ? 'bg-purple-100 text-purple-900 border-purple-200'
+                              : (task.assignee === 'Vini')
+                              ? 'bg-sky-100 text-sky-900 border-sky-200'
+                              : 'bg-slate-100 text-slate-800 border-slate-200'
                           }`}>
-                            {(task.assignee || 'Bea') === 'Bea' ? 'Bea' : 'Vini'}
+                            {task.assignee || 'Bea'}
                           </span>
 
-                          <button
-                            onClick={() => handleQuickHandoff(task, (task.assignee || 'Bea') === 'Bea' ? 'Vini' : 'Bea')}
-                            className="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-slate-700 hover:text-amber-900 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                            title={`Passar bastão para ${(task.assignee || 'Bea') === 'Bea' ? 'Vini' : 'Bea'}`}
-                          >
-                            <ArrowRightLeft className="w-3.5 h-3.5" />
-                            <span>Passar para {(task.assignee || 'Bea') === 'Bea' ? 'Vini' : 'Bea'}</span>
-                          </button>
+                          {/* Seletor rápido de passagem de bastão */}
+                          <div className="relative inline-flex items-center">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 hover:border-amber-400 bg-white hover:bg-amber-50/50 text-slate-700 transition">
+                              <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <select
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleQuickHandoff(task, e.target.value);
+                                  }
+                                }}
+                                className="bg-transparent text-xs font-bold text-slate-700 hover:text-amber-900 cursor-pointer focus:outline-hidden"
+                                title="Passar bastão para outro membro ou chefe da equipe"
+                              >
+                                <option value="" disabled>Passar bastão...</option>
+                                {workloadSummary.operators
+                                  .filter((op) => op.operator !== (task.assignee || 'Bea'))
+                                  .map((op) => (
+                                    <option key={op.operator} value={op.operator}>
+                                      Passar para {op.displayName || op.operator}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                          </div>
 
                           <button
                             onClick={() => handleQuickTogglePause(task)}
