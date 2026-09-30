@@ -23,6 +23,7 @@ import { AdminMetricsModal } from './components/Admin/AdminMetricsModal';
 import { TeamManagementModal } from './components/Admin/TeamManagementModal';
 import { CompanyManagerModal } from './components/Common/CompanyManagerModal';
 import { WorkloadDashboardModal } from './components/Team/WorkloadDashboardModal';
+import { UserManagementPortal, type PortalSleeve } from './components/Admin/UserManagementPortal';
 import { formatDateKey, parseDateKey } from './utils/dateUtils';
 import { 
   calculateBusinessSeconds, 
@@ -45,6 +46,10 @@ function ErgonWorkspace() {
   const [currentMonth, setCurrentMonth] = useState<number>(now.getMonth());
   const [activeTab, setActiveTab] = useState<'both' | 'calendar' | 'kanban'>('both');
   
+  // Controle de Visualização Principal: Workspace (Kanban/Calendário) vs. Página Dedicada de Gestão
+  const [currentView, setCurrentView] = useState<'workspace' | 'user_portal'>('workspace');
+  const [portalInitialSleeve, setPortalInitialSleeve] = useState<PortalSleeve>('team_access');
+
   // Selected date state for sync between calendar and kanban
   const [selectedDateKey, setSelectedDateKey] = useState<string>('');
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
@@ -977,14 +982,36 @@ function ErgonWorkspace() {
     setIsNewTaskModalOpen(true);
   };
 
+  if (currentView === 'user_portal') {
+    return (
+      <UserManagementPortal
+        onBackToWorkspace={() => setCurrentView('workspace')}
+        initialSleeve={portalInitialSleeve}
+        tasks={tasks}
+        companies={companies}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
+        onSelectTask={(task) => {
+          setCurrentView('workspace');
+          setEditingTask(task);
+          setIsNewTaskModalOpen(true);
+        }}
+        onUpdateTask={handleUpdateTask}
+        onAddNewCompany={handleAddNewCompany}
+        onDeleteCompany={handleDeleteCompany}
+      />
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col bg-slate-100 text-slate-900 overflow-hidden font-['Inter',sans-serif] select-none">
       {/* Top Navbar */}
       <Navbar 
-        onOpenAdminMetrics={() => setIsAdminMetricsOpen(true)}
         onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
-        onOpenWorkloadDashboard={() => setIsWorkloadDashboardOpen(true)}
-        onOpenTeamManagement={() => setIsTeamManagementOpen(true)}
+        onOpenUserPortal={(sleeve) => {
+          setPortalInitialSleeve(sleeve || 'team_access');
+          setCurrentView('user_portal');
+        }}
       />
 
       {/* View Switcher: Lado a Lado | Calendário | Kanban */}

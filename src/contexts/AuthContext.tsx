@@ -52,17 +52,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeDepartmentId, setActiveDepartmentIdState] = useState<string | null>(() => {
     return localStorage.getItem('ergon_active_department_id');
   });
-  const [viewMode, setViewMode] = useState<AuthViewMode>('login');
+  const [viewMode, setViewModeState] = useState<AuthViewMode>('login');
 
-  // Detecta se a URL contém token de recuperação ou convite do Supabase
+  // Sincroniza viewMode e mantém a URL do navegador limpa e consistente
+  const setViewMode = useCallback((mode: AuthViewMode) => {
+    setViewModeState(mode);
+    try {
+      if (mode === 'login') {
+        if (window.location.pathname !== '/' || window.location.hash) {
+          window.history.replaceState(null, '', '/');
+        }
+      } else if (mode === 'forgot_password') {
+        window.history.replaceState(null, '', '/esqueci-senha');
+      } else if (mode === 'update_password') {
+        window.history.replaceState(null, '', '/redefinir-senha');
+      } else if (mode === 'accept_invite') {
+        window.history.replaceState(null, '', '/aceitar-convite');
+      }
+    } catch {
+      // Ignora restrições de sandbox em tempo de execução
+    }
+  }, []);
+
+  // Detecta se a URL contém token legítimo de recuperação ou convite do Supabase
   useEffect(() => {
     const hash = window.location.hash || '';
     const pathname = window.location.pathname || '';
 
-    if (hash.includes('type=recovery') || pathname.includes('/redefinir-senha')) {
-      setViewMode('update_password');
-    } else if (hash.includes('type=invite') || pathname.includes('/aceitar-convite')) {
-      setViewMode('accept_invite');
+    // Apenas entra em redefinição se houver token de recuperação na hash do Supabase
+    if (hash.includes('type=recovery') || (pathname.includes('/redefinir-senha') && hash.includes('access_token'))) {
+      setViewModeState('update_password');
+    } else if (hash.includes('type=invite') || (pathname.includes('/aceitar-convite') && hash.includes('access_token'))) {
+      setViewModeState('accept_invite');
+    } else if (pathname.includes('/esqueci-senha')) {
+      setViewModeState('forgot_password');
+    } else {
+      // Caso contrário, garante que o usuário esteja na tela de login e limpa qualquer rota fantasma
+      setViewModeState('login');
+      if (pathname.includes('/redefinir-senha') || pathname.includes('/aceitar-convite')) {
+        window.history.replaceState(null, '', '/');
+      }
     }
   }, []);
 
@@ -328,6 +357,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: error.message };
       }
 
+      // Limpa qualquer hash ou rota residual de recuperação/convite da URL
+      if (window.location.hash || window.location.pathname !== '/') {
+        window.history.replaceState(null, '', '/');
+      }
+
       if (data.user) {
         await loadUserData(data.user.id);
       }
@@ -353,10 +387,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveDepartmentIdState(null);
       localStorage.removeItem('ergon_active_department_id');
       localStorage.removeItem('ergon_active_org_id');
+      if (window.location.hash || window.location.pathname !== '/') {
+        window.history.replaceState(null, '', '/');
+      }
       setViewMode('login');
       setStatus('unauthenticated');
     }
-  }, []);
+  }, [setViewMode]);
 
   const requestPasswordReset = useCallback(async (email: string): Promise<{ error?: string; success?: boolean }> => {
     try {
@@ -385,12 +422,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: error.message };
       }
 
+      if (window.location.hash || window.location.pathname !== '/') {
+        window.history.replaceState(null, '', '/');
+      }
       setViewMode('login');
       return { success: true };
     } catch (err: any) {
       return { error: err.message || 'Falha ao atualizar a senha.' };
     }
-  }, []);
+  }, [setViewMode]);
 
   const refreshSessionData = useCallback(async () => {
     if (session?.user) {
