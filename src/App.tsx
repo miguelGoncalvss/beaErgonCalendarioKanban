@@ -23,7 +23,7 @@ import { AdminMetricsModal } from './components/Admin/AdminMetricsModal';
 import { TeamManagementModal } from './components/Admin/TeamManagementModal';
 import { CompanyManagerModal } from './components/Common/CompanyManagerModal';
 import { WorkloadDashboardModal } from './components/Team/WorkloadDashboardModal';
-import { UserManagementPortal, type PortalSleeve } from './components/Admin/UserManagementPortal';
+import { UserManagementPortal, type AdminSection } from './components/Admin/UserManagementPortal';
 import { formatDateKey, parseDateKey } from './utils/dateUtils';
 import { 
   calculateBusinessSeconds, 
@@ -46,9 +46,40 @@ function ErgonWorkspace() {
   const [currentMonth, setCurrentMonth] = useState<number>(now.getMonth());
   const [activeTab, setActiveTab] = useState<'both' | 'calendar' | 'kanban'>('both');
   
-  // Controle de Visualização Principal: Workspace (Kanban/Calendário) vs. Página Dedicada de Gestão
-  const [currentView, setCurrentView] = useState<'workspace' | 'user_portal'>('workspace');
-  const [portalInitialSleeve, setPortalInitialSleeve] = useState<PortalSleeve>('team_access');
+  // Controle de Visualização: Workspace vs. Painel Administrativo (/admin-panel)
+  const isInitialAdmin = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin-panel');
+  const [currentView, setCurrentView] = useState<'workspace' | 'admin_panel'>(
+    isInitialAdmin ? 'admin_panel' : 'workspace'
+  );
+  const [adminInitialSection, setAdminInitialSection] = useState<AdminSection>('membros');
+
+  // Suporte a histórico do navegador (botão voltar/avançar)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname.startsWith('/admin-panel')) {
+        setCurrentView('admin_panel');
+      } else {
+        setCurrentView('workspace');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleOpenAdminPanel = useCallback((section?: AdminSection) => {
+    if (section) setAdminInitialSection(section);
+    setCurrentView('admin_panel');
+    if (window.location.pathname !== '/admin-panel') {
+      window.history.pushState({ view: 'admin_panel' }, '', '/admin-panel');
+    }
+  }, []);
+
+  const handleBackToWorkspace = useCallback(() => {
+    setCurrentView('workspace');
+    if (window.location.pathname !== '/') {
+      window.history.pushState({ view: 'workspace' }, '', '/');
+    }
+  }, []);
 
   // Selected date state for sync between calendar and kanban
   const [selectedDateKey, setSelectedDateKey] = useState<string>('');
@@ -982,17 +1013,17 @@ function ErgonWorkspace() {
     setIsNewTaskModalOpen(true);
   };
 
-  if (currentView === 'user_portal') {
+  if (currentView === 'admin_panel') {
     return (
       <UserManagementPortal
-        onBackToWorkspace={() => setCurrentView('workspace')}
-        initialSleeve={portalInitialSleeve}
+        onBackToWorkspace={handleBackToWorkspace}
+        initialSection={adminInitialSection}
         tasks={tasks}
         companies={companies}
         currentYear={currentYear}
         currentMonth={currentMonth}
         onSelectTask={(task) => {
-          setCurrentView('workspace');
+          handleBackToWorkspace();
           setEditingTask(task);
           setIsNewTaskModalOpen(true);
         }}
@@ -1008,10 +1039,7 @@ function ErgonWorkspace() {
       {/* Top Navbar */}
       <Navbar 
         onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
-        onOpenUserPortal={(sleeve) => {
-          setPortalInitialSleeve(sleeve || 'team_access');
-          setCurrentView('user_portal');
-        }}
+        onOpenAdminPanel={handleOpenAdminPanel}
       />
 
       {/* View Switcher: Lado a Lado | Calendário | Kanban */}

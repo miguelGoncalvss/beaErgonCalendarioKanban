@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setViewModeState(mode);
     try {
       if (mode === 'login') {
-        if (window.location.pathname !== '/' || window.location.hash) {
+        if (window.location.hash || window.location.pathname === '/redefinir-senha' || window.location.pathname === '/aceitar-convite' || window.location.pathname === '/esqueci-senha') {
           window.history.replaceState(null, '', '/');
         }
       } else if (mode === 'forgot_password') {
@@ -357,8 +357,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: error.message };
       }
 
-      // Limpa qualquer hash ou rota residual de recuperação/convite da URL
-      if (window.location.hash || window.location.pathname !== '/') {
+      // Limpa qualquer hash ou rota residual de recuperação/convite da URL (mantendo /admin-panel se o usuário estava nele)
+      if (window.location.hash || window.location.pathname === '/redefinir-senha' || window.location.pathname === '/aceitar-convite' || window.location.pathname === '/esqueci-senha') {
         window.history.replaceState(null, '', '/');
       }
 

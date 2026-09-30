@@ -7,7 +7,7 @@ interface NavbarProps {
   onOpenCompanyManager?: () => void;
   onOpenWorkloadDashboard?: () => void;
   onOpenTeamManagement?: () => void;
-  onOpenUserPortal?: (sleeve?: 'team_access' | 'workload' | 'sla_metrics' | 'profile') => void;
+  onOpenAdminPanel?: (section?: 'membros' | 'setores' | 'convites' | 'auditoria' | 'workload' | 'sla_metrics' | 'profile') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -15,7 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCompanyManager,
   onOpenWorkloadDashboard,
   onOpenTeamManagement,
-  onOpenUserPortal,
+  onOpenAdminPanel,
 }) => {
   const { 
     user, 
@@ -104,8 +104,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Se onOpenUserPortal não estiver ativo ou para acesso rápido legado */}
-          {!onOpenUserPortal && onOpenAdminMetrics && (
+          {/* Se onOpenAdminPanel não estiver ativo ou para acesso rápido legado */}
+          {!onOpenAdminPanel && onOpenAdminMetrics && (
             <button
               onClick={onOpenAdminMetrics}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#08223f] hover:bg-blue-900 border border-amber-400/50 hover:border-amber-400 text-amber-300 text-xs font-bold transition cursor-pointer shadow-xs"
@@ -118,7 +118,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Equipe & Acessos - Apenas se não houver portal dedicado integrado */}
-          {!onOpenUserPortal && onOpenTeamManagement && (isOrgAdmin || isDepartmentManager) && (
+          {!onOpenAdminPanel && onOpenTeamManagement && (isOrgAdmin || isDepartmentManager) && (
             <button
               onClick={onOpenTeamManagement}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#08223f] hover:bg-blue-900 border border-amber-400/50 hover:border-amber-400 text-amber-300 text-xs font-bold transition cursor-pointer shadow-xs"
@@ -131,7 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Equipe Ergon - Apenas se não houver portal dedicado integrado */}
-          {!onOpenUserPortal && onOpenWorkloadDashboard && (
+          {!onOpenAdminPanel && onOpenWorkloadDashboard && (
             <button 
               type="button"
               onClick={onOpenWorkloadDashboard}
@@ -152,14 +152,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Perfil do Usuário Autenticado e Acesso à Área de Gestão */}
+          {/* Perfil do Usuário Autenticado e Acesso à Área de Gestão (/admin-panel) */}
           {user && (
             <div className="flex items-center gap-1.5 pl-1.5 sm:pl-2.5 border-l border-blue-900/80">
               <button
                 type="button"
-                onClick={() => onOpenUserPortal?.('team_access')}
+                onClick={() => onOpenAdminPanel?.('membros')}
                 className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-[#08223f] hover:bg-blue-900 border border-blue-800 hover:border-amber-400 text-left transition cursor-pointer group shadow-xs"
-                title="Abrir Central de Gestão & Área do Operador"
+                title="Abrir Painel Administrativo (/admin-panel)"
               >
                 <div 
                   className="w-7 h-7 rounded-full bg-amber-400 text-[#0d345e] font-black text-xs flex items-center justify-center shadow-xs border border-amber-300 group-hover:scale-105 transition-transform shrink-0"
@@ -171,8 +171,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-xs font-bold text-white truncate max-w-[120px] leading-tight group-hover:text-amber-300 transition-colors">
                     {user.fullName}
                   </span>
-                  <span className="text-[9.5px] text-amber-300/90 font-medium leading-tight">
-                    {isOrgOwner ? '👑 Owner' : isOrgAdmin ? '🛡️ Admin' : isDepartmentManager ? '⭐ Chefe Setor' : '👤 Membro'}
+                  <span className="text-[9.5px] text-amber-300/90 font-semibold uppercase tracking-wider leading-tight">
+                    {isOrgOwner ? 'Owner' : isOrgAdmin ? 'Administrador' : isDepartmentManager ? 'Chefe Setor' : 'Membro'}
                   </span>
                 </div>
               </button>
