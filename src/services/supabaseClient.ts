@@ -54,3 +54,19 @@ export const supabase = createClient(
     },
   }
 );
+
+// Cria um cliente isolado sem persistência em localStorage para operações administrativas (ex: Owner provisionando usuário diretamente)
+export const createIsolatedSupabaseClient = () => {
+  return createClient(
+    isSupabaseConfigured() ? resolvedUrl : 'https://placeholder.supabase.co',
+    isSupabaseConfigured() ? rawKey : 'placeholder',
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+};
+

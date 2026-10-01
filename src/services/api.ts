@@ -6,9 +6,10 @@ import type {
   OrganizationMember, 
   OrganizationRole, 
   OrganizationInvitation, 
+  PublicInvitationDetails,
   AuditLog 
 } from '../types/auth';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { supabase, isSupabaseConfigured, createIsolatedSupabaseClient } from './supabaseClient';
 import { calculateBusinessSeconds } from '../utils/timeMetrics';
 
 const API_BASE = '/api';
@@ -1261,6 +1262,88 @@ export const api = {
       return data;
     }
     throw new Error('Supabase não configurado');
+  },
+
+  async getInvitationDetails(invitationId: string): Promise<PublicInvitationDetails> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.rpc('get_invitation_public_details', {
+        p_invitation_id: invitationId,
+      });
+      if (error) throw error;
+      return data as PublicInvitationDetails;
+    }
+    return { valid: false, message: 'Supabase não configurado' };
+  },
+
+  async acceptInvitation(invitationId: string): Promise<{ success: boolean; message: string; organizationId?: string; departmentId?: string }> {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase.rpc('accept_organization_invitation', {
+        p_invitation_id: invitationId,
+      });
+      if (error) throw error;
+      return data;
+    }
+    throw new Error('Supabase não configurado');
+  },
+
+  async directCreateMember(params: {
+    organizationId: string;
+    email: string;
+    fullName: string;
+    password: string;
+    orgRole: OrganizationRole;
+    departmentId?: string;
+    deptRole?: DepartmentRole;
+  }): Promise<{ status: string; message: string; userId?: string }> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase não configurado');
+    }
+
+    // 1. Cria usuário usando o cliente isolado sem comprometer a sessão do Owner
+    const isolatedClient = createIsolatedSupabaseClient();
+    const { data: authData, error: authErr } = await isolatedClient.auth.signUp({
+      email: params.email.trim(),
+      password: params.password,
+      options: {
+        data: {
+          full_name: params.fullName.trim(),
+        },
+      },
+    });
+
+    if (authErr) {
+      if (authErr.message.toLowerCase().includes('already registered') || authErr.message.toLowerCase().includes('already been registered')) {
+        await this.inviteOrAddMember({
+          organizationId: params.organizationId,
+          email: params.email,
+          fullName: params.fullName,
+          orgRole: params.orgRole,
+          departmentId: params.departmentId,
+          deptRole: params.deptRole,
+        });
+        return {
+          status: 'linked_existing',
+          message: 'Usuário já existia no banco de dados e foi vinculado com sucesso à organização e setor!',
+        };
+      }
+      throw authErr;
+    }
+
+    // 2. Garante o vínculo formal via RPC admin_invite_or_add_member
+    await this.inviteOrAddMember({
+      organizationId: params.organizationId,
+      email: params.email,
+      fullName: params.fullName,
+      orgRole: params.orgRole,
+      departmentId: params.departmentId,
+      deptRole: params.deptRole,
+    });
+
+    return {
+      status: 'created_directly',
+      userId: authData.user?.id,
+      message: 'Conta criada e vinculada com sucesso! O operador já pode fazer login imediato com a senha definida.',
+    };
   },
 
   async revokeInvitation(invitationId: string): Promise<void> {

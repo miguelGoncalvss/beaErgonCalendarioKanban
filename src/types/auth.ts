@@ -88,6 +88,23 @@ export interface OrganizationInvitation {
   updatedAt: string;
 }
 
+export interface PublicInvitationDetails {
+  valid: boolean;
+  id?: string;
+  email?: string;
+  fullName?: string;
+  orgId?: string;
+  orgName?: string;
+  orgRole?: OrganizationRole;
+  departmentId?: string | null;
+  departmentName?: string;
+  deptRole?: DepartmentRole;
+  expiresAt?: string;
+  message?: string;
+  status?: string;
+}
+
+
 export interface AuditLog {
   id: string;
   organizationId: string;

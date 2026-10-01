@@ -22,7 +22,10 @@ export const LoginScreen: React.FC = () => {
     setViewMode, 
     signInWithPassword, 
     requestPasswordReset, 
-    updateUserPassword 
+    updateUserPassword,
+    invitationData,
+    loadingInvitation,
+    acceptInviteAndRegister
   } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -104,6 +107,34 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
+  const handleAcceptInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    if (!password || password.length < 6) {
+      setErrorMessage('A nova senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('As senhas digitadas não coincidem.');
+      return;
+    }
+
+    setLoading(true);
+    const { error, success } = await acceptInviteAndRegister(password);
+    setLoading(false);
+
+    if (error) {
+      setErrorMessage(error);
+    } else if (success) {
+      setSuccessMessage('Acesso ativado com sucesso! Carregando seu ambiente de trabalho...');
+      setPassword('');
+      setConfirmPassword('');
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row font-['Inter',sans-serif] text-slate-800 select-none bg-slate-50">
       
@@ -130,12 +161,14 @@ export const LoginScreen: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               {viewMode === 'login' && 'Entrar na Plataforma'}
               {viewMode === 'forgot_password' && 'Recuperar Acesso'}
-              {(viewMode === 'update_password' || viewMode === 'accept_invite') && 'Definir Senha de Acesso'}
+              {viewMode === 'update_password' && 'Definir Nova Senha'}
+              {viewMode === 'accept_invite' && 'Ativação de Acesso'}
             </h1>
             <p className="text-sm text-slate-500 mt-2 leading-relaxed">
               {viewMode === 'login' && 'Identifique-se com seu e-mail corporativo para acessar as rotinas, prazos e Kanban.'}
               {viewMode === 'forgot_password' && 'Enviaremos um link seguro para o seu e-mail corporativo redefinir a credencial.'}
-              {(viewMode === 'update_password' || viewMode === 'accept_invite') && 'Crie sua senha pessoal segura para concluir a ativação da sua conta.'}
+              {viewMode === 'update_password' && 'Crie sua senha pessoal segura para restabelecer seu acesso.'}
+              {viewMode === 'accept_invite' && 'Conclua seu cadastro institucional criando sua senha de acesso à Ergon.'}
             </p>
           </div>
 
@@ -281,8 +314,8 @@ export const LoginScreen: React.FC = () => {
             </form>
           )}
 
-          {/* 3. MODO: ATUALIZAR SENHA (RECOVERY OU INVITE) */}
-          {(viewMode === 'update_password' || viewMode === 'accept_invite') && (
+          {/* 3. MODO: ATUALIZAR SENHA (RECOVERY) */}
+          {viewMode === 'update_password' && (
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -348,6 +381,128 @@ export const LoginScreen: React.FC = () => {
                 </button>
               </div>
             </form>
+          )}
+
+          {/* 4. MODO: ATIVAÇÃO DE CONVITE CORPORATIVO */}
+          {viewMode === 'accept_invite' && (
+            <div className="space-y-4">
+              {loadingInvitation ? (
+                <div className="p-8 text-center bg-slate-50/80 rounded-2xl border border-slate-200">
+                  <span className="inline-block w-6 h-6 border-2 border-[#0d345e] border-t-transparent rounded-full animate-spin mb-3" />
+                  <p className="text-xs text-slate-600 font-semibold">Validando credencial de convite...</p>
+                </div>
+              ) : invitationData && !invitationData.valid ? (
+                <div className="p-6 rounded-2xl bg-rose-50/80 border border-rose-200 text-center space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-rose-900">Convite Indisponível</h3>
+                    <p className="text-xs text-rose-700 mt-1">{invitationData.message || 'Este convite não é válido ou já expirou.'}</p>
+                    <p className="text-[11px] text-rose-600 mt-1">Solicite um novo convite ao administrador da organização.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('login')}
+                    className="px-4 py-2 rounded-xl bg-[#0d345e] text-white text-xs font-bold hover:bg-[#08223f] transition cursor-pointer"
+                  >
+                    Voltar para o Login
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleAcceptInvite} className="space-y-4">
+                  {invitationData && (
+                    <div className="p-4 rounded-2xl bg-[#0d345e]/5 border border-[#0d345e]/15">
+                      <div className="flex items-center gap-2 mb-2 text-[11px] font-bold text-[#0d345e] uppercase tracking-wider">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Convite Oficial Ergon</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-black text-slate-900">{invitationData.fullName}</p>
+                        <p className="text-xs text-slate-600 font-medium">{invitationData.email}</p>
+                      </div>
+                      <div className="mt-3 pt-2.5 border-t border-[#0d345e]/10 flex flex-wrap gap-1.5 text-[11px]">
+                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-bold">
+                          Ergon
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-amber-100/80 border border-amber-300 text-amber-900 font-bold">
+                          {invitationData.orgRole === 'admin' ? 'Administrador' : 'Membro'}
+                        </span>
+                        {invitationData.departmentName && (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-100/80 border border-emerald-300 text-emerald-900 font-bold">
+                            Setor: {invitationData.departmentName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Defina sua Senha de Acesso
+                    </label>
+                    <div className="relative flex items-center">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0d345e]/20 focus:border-[#0d345e] focus:bg-white transition font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Confirmar Senha
+                    </label>
+                    <div className="relative flex items-center">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                      <input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0d345e]/20 focus:border-[#0d345e] focus:bg-white transition font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3.5 px-4 rounded-xl bg-[#0d345e] hover:bg-[#08223f] text-amber-300 font-black text-sm shadow-md hover:shadow-lg transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {loading ? (
+                      <span className="inline-block w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Ativar Meu Acesso Ergon</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorMessage(null);
+                        setSuccessMessage(null);
+                        setViewMode('login');
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 font-semibold cursor-pointer transition"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Voltar para o login tradicional</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
 
         </div>

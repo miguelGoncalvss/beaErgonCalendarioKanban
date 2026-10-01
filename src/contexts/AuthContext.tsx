@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import { api } from '../services/api';
 import type { 
   UserProfile, 
   Organization, 
@@ -8,7 +9,8 @@ import type {
   Department, 
   DepartmentMember, 
   OrganizationRole, 
-  DepartmentRole 
+  DepartmentRole,
+  PublicInvitationDetails
 } from '../types/auth';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'deactivated' | 'no_membership';
@@ -30,12 +32,15 @@ interface AuthContextType {
   isGlobalAdmin: boolean;
   isDepartmentManager: boolean;
   viewMode: AuthViewMode;
+  invitationData: PublicInvitationDetails | null;
+  loadingInvitation: boolean;
   setViewMode: (mode: AuthViewMode) => void;
   setActiveDepartmentId: (deptId: string) => void;
   signInWithPassword: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<{ error?: string; success?: boolean }>;
   updateUserPassword: (newPassword: string) => Promise<{ error?: string; success?: boolean }>;
+  acceptInviteAndRegister: (password: string) => Promise<{ error?: string; success?: boolean }>;
   refreshSessionData: () => Promise<void>;
 }
 
@@ -53,6 +58,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return localStorage.getItem('ergon_active_department_id');
   });
   const [viewMode, setViewModeState] = useState<AuthViewMode>('login');
+  const [invitationData, setInvitationData] = useState<PublicInvitationDetails | null>(null);
+  const [loadingInvitation, setLoadingInvitation] = useState<boolean>(false);
 
   // Sincroniza viewMode e mantém a URL do navegador limpa e consistente
   const setViewMode = useCallback((mode: AuthViewMode) => {
@@ -74,10 +81,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Detecta se a URL contém token legítimo de recuperação ou convite do Supabase
+  // Detecta se a URL contém token de convite ou de recuperação do Supabase
   useEffect(() => {
     const hash = window.location.hash || '';
+    const search = window.location.search || '';
     const pathname = window.location.pathname || '';
+
+    // Extrai identificador de convite (via #invitation=..., ?invitation=... ou /aceitar-convite?token=...)
+    let foundInviteId: string | null = null;
+    if (hash.includes('invitation=')) {
+      const match = hash.match(/invitation=([a-f0-9\-]+)/i);
+      if (match) foundInviteId = match[1];
+    } else if (search.includes('invitation=')) {
+      const params = new URLSearchParams(search);
+      foundInviteId = params.get('invitation');
+    } else if (pathname.includes('/aceitar-convite') && search.includes('token=')) {
+      const params = new URLSearchParams(search);
+      foundInviteId = params.get('token');
+    }
+
+    if (foundInviteId) {
+      setViewModeState('accept_invite');
+      setLoadingInvitation(true);
+      api.getInvitationDetails(foundInviteId)
+        .then((details) => {
+          setInvitationData(details);
+        })
+        .catch((err) => {
+          console.error('Erro ao validar convite:', err);
+          setInvitationData({ valid: false, message: 'Não foi possível validar este convite.' });
+        })
+        .finally(() => {
+          setLoadingInvitation(false);
+        });
+      return;
+    }
 
     // Apenas entra em redefinição se houver token de recuperação na hash do Supabase
     if (hash.includes('type=recovery') || (pathname.includes('/redefinir-senha') && hash.includes('access_token'))) {
@@ -432,6 +470,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [setViewMode]);
 
+  const acceptInviteAndRegister = useCallback(async (password: string): Promise<{ error?: string; success?: boolean }> => {
+    if (!invitationData || !invitationData.valid || !invitationData.id || !invitationData.email) {
+      return { error: 'Dados do convite não encontrados ou convite expirado.' };
+    }
+
+    try {
+      // 1. Cadastra o operador no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: invitationData.email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: invitationData.fullName || invitationData.email.split('@')[0],
+          },
+        },
+      });
+
+      if (authError) {
+        // Se a conta já existe, tenta autenticar e aceitar o convite
+        if (authError.message.toLowerCase().includes('already registered')) {
+          const { data: signInData, error: loginErr } = await supabase.auth.signInWithPassword({
+            email: invitationData.email.trim(),
+            password,
+          });
+          if (loginErr) {
+            return { 
+              error: 'Uma conta com este e-mail já existe no sistema. Por favor, insira sua senha cadastrada para associar o novo acesso.' 
+            };
+          }
+          await api.acceptInvitation(invitationData.id);
+          if (signInData.user) {
+            await loadUserData(signInData.user.id);
+          }
+          if (window.location.hash || window.location.pathname !== '/') {
+            window.history.replaceState(null, '', '/');
+          }
+          setViewMode('login');
+          return { success: true };
+        }
+        return { error: authError.message };
+      }
+
+      // 2. Aceita o convite formalmente vinculando à organização e setor
+      await api.acceptInvitation(invitationData.id);
+
+      if (authData.session?.user) {
+        await loadUserData(authData.session.user.id);
+      }
+
+      if (window.location.hash || window.location.pathname !== '/') {
+        window.history.replaceState(null, '', '/');
+      }
+      setViewMode('login');
+      return { success: true };
+    } catch (err: any) {
+      return { error: err.message || 'Falha ao processar ativação de convite.' };
+    }
+  }, [invitationData, loadUserData, setViewMode]);
+
   const refreshSessionData = useCallback(async () => {
     if (session?.user) {
       await loadUserData(session.user.id);
@@ -472,12 +569,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isGlobalAdmin: isOrgAdmin || isOrgOwner,
       isDepartmentManager,
       viewMode,
+      invitationData,
+      loadingInvitation,
       setViewMode,
       setActiveDepartmentId,
       signInWithPassword,
       signOut,
       requestPasswordReset,
       updateUserPassword,
+      acceptInviteAndRegister,
       refreshSessionData,
     }),
     [
@@ -494,11 +594,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isOrgOwner,
       isDepartmentManager,
       viewMode,
+      invitationData,
+      loadingInvitation,
+      setViewMode,
       setActiveDepartmentId,
       signInWithPassword,
       signOut,
       requestPasswordReset,
       updateUserPassword,
+      acceptInviteAndRegister,
       refreshSessionData,
     ]
   );
