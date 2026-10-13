@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
   Search, 
   Plus,
-  StickyNote
+  StickyNote,
+  Filter,
+  X
 } from 'lucide-react';
 import { 
   MONTH_NAMES_PT, 
@@ -14,7 +16,12 @@ import {
 } from '../../utils/dateUtils';
 import { DayCell } from './DayCell';
 import { DayNotesModal } from './DayNotesModal';
-import type { DayNote, Task } from '../../types';
+import { 
+  CalendarFilterPopover, 
+  INITIAL_CALENDAR_FILTERS 
+} from './CalendarFilterPopover';
+import type { CalendarFilterState } from './CalendarFilterPopover';
+import type { DayNote, Task, NoteCategory } from '../../types';
 
 interface CalendarViewProps {
   currentYear: number;
@@ -57,6 +64,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalInitialAddForm, setModalInitialAddForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<CalendarFilterState>(INITIAL_CALENDAR_FILTERS);
 
   const calendarRef = useRef<HTMLDivElement>(null);
 
@@ -128,18 +136,91 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setIsModalOpen(true);
   };
 
+  const hasActiveFilters = 
+    filters.types.length > 0 || 
+    filters.colors.length > 0 || 
+    filters.companies.length > 0;
+
+  const totalActiveFilters = 
+    filters.types.length + 
+    filters.colors.length + 
+    filters.companies.length;
+
+  // Mapa de notas por taskId/title para cruzamento com tarefas
+  const noteByTaskId = useMemo(() => {
+    const map = new Map<string, DayNote>();
+    notes.forEach((n) => {
+      if (n.taskId) map.set(n.taskId, n);
+      if (n.title) map.set(n.title, n);
+    });
+    return map;
+  }, [notes]);
+
+  const matchColor = (color?: string) => {
+    if (filters.colors.length === 0) return true;
+    if (!color) return filters.colors.includes('none');
+    return filters.colors.some((c) => c.toLowerCase() === color.toLowerCase());
+  };
+
+  const matchType = (category?: NoteCategory) => {
+    if (filters.types.length === 0) return true;
+    return category ? filters.types.includes(category) : false;
+  };
+
+  const matchCompany = (company?: string) => {
+    if (filters.companies.length === 0) return true;
+    if (!company || !company.trim()) return filters.companies.includes('none');
+    return filters.companies.includes(company.trim());
+  };
+
+  // Filtragem das Notas por Tipo, Cor e Empresa
+  const displayedNotes = useMemo(() => {
+    if (!hasActiveFilters) return notes;
+    return notes.filter((n) => {
+      const colorOk = matchColor(n.color);
+      const typeOk = matchType(n.category);
+      const companyOk = matchCompany(n.company);
+      return colorOk && typeOk && companyOk;
+    });
+  }, [notes, hasActiveFilters, filters]);
+
+  // Filtragem das Tarefas do Kanban por Tipo, Cor e Empresa
+  const displayedTasks = useMemo(() => {
+    if (!hasActiveFilters) return tasks;
+    return tasks.filter((t) => {
+      const linkedNote = noteByTaskId.get(t.id) || noteByTaskId.get(t.title);
+      const taskColor = t.color || linkedNote?.color;
+      const taskCompany = t.company || linkedNote?.company;
+      
+      const colorOk = matchColor(taskColor);
+      const companyOk = matchCompany(taskCompany);
+
+      let typeOk = true;
+      if (filters.types.length > 0) {
+        if (linkedNote?.category) {
+          typeOk = filters.types.includes(linkedNote.category);
+        } else {
+          const isUrgent = t.priority === 'urgent';
+          typeOk = (isUrgent && filters.types.includes('urgente')) || filters.types.includes('geral');
+        }
+      }
+
+      return colorOk && companyOk && typeOk;
+    });
+  }, [tasks, noteByTaskId, hasActiveFilters, filters]);
+
   const days = getDaysForMonth(currentYear, currentMonth);
 
   // Group notes by dateKey
   const notesByDate: Record<string, DayNote[]> = {};
-  notes.forEach((note) => {
+  displayedNotes.forEach((note) => {
     if (!notesByDate[note.date]) notesByDate[note.date] = [];
     notesByDate[note.date].push(note);
   });
 
   // Group tasks due by dateKey
   const tasksByDate: Record<string, Task[]> = {};
-  tasks.forEach((task) => {
+  displayedTasks.forEach((task) => {
     if (task.dueDate) {
       if (!tasksByDate[task.dueDate]) tasksByDate[task.dueDate] = [];
       tasksByDate[task.dueDate].push(task);
@@ -148,7 +229,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Filtered notes if search query is active
   const filteredNotes = searchQuery.trim()
-    ? notes.filter(
+    ? displayedNotes.filter(
         (n) =>
           n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           n.content?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -158,7 +239,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div ref={calendarRef} className="flex flex-col h-full bg-white border-r border-slate-200">
       {/* Calendar Top Bar */}
-      <div className="h-16 px-4 border-b border-slate-200 bg-white flex items-center justify-between shrink-0 relative">
+      <div className="min-h-16 py-2 px-3 sm:px-4 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-2 shrink-0 relative">
         {/* Month & Year Title & Quick Jumper */}
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 shadow-2xs p-0.5">
@@ -213,8 +294,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </button>
         </div>
 
-        {/* Quick Add Note Button & Search */}
-        <div className="flex items-center gap-2">
+        {/* Quick Add Note Button, Filter & Search */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Popover de Filtros: Cor, Tipo, Empresa */}
+          <CalendarFilterPopover
+            filters={filters}
+            onChangeFilters={setFilters}
+            availableCompanies={companies}
+          />
+
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -222,7 +310,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               placeholder="Buscar notas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#0d345e] focus:border-[#0d345e] w-32 sm:w-40 transition"
+              className="pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#0d345e] focus:border-[#0d345e] w-28 sm:w-36 transition"
             />
             {searchQuery && (
               <button
@@ -279,6 +367,42 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Barra de Filtros Ativos */}
+      {totalActiveFilters > 0 && (
+        <div className="px-3 sm:px-4 py-1.5 bg-amber-50/90 border-b border-amber-200 flex items-center justify-between text-xs text-amber-950 flex-wrap gap-2 animate-fadeIn">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-extrabold text-[#0d345e] flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-amber-600" />
+              Filtrando calendário por:
+            </span>
+            {filters.types.length > 0 && (
+              <span className="bg-white border border-amber-300 px-2 py-0.5 rounded-full text-[11px] font-bold text-[#0d345e] shadow-2xs">
+                {filters.types.length} {filters.types.length === 1 ? 'tipo' : 'tipos'}
+              </span>
+            )}
+            {filters.colors.length > 0 && (
+              <span className="bg-white border border-amber-300 px-2 py-0.5 rounded-full text-[11px] font-bold text-[#0d345e] shadow-2xs">
+                {filters.colors.length} {filters.colors.length === 1 ? 'cor' : 'cores'}
+              </span>
+            )}
+            {filters.companies.length > 0 && (
+              <span className="bg-white border border-amber-300 px-2 py-0.5 rounded-full text-[11px] font-bold text-[#0d345e] shadow-2xs">
+                {filters.companies.length} {filters.companies.length === 1 ? 'empresa' : 'empresas'}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setFilters(INITIAL_CALENDAR_FILTERS)}
+            className="text-xs font-bold text-[#0d345e] hover:text-blue-950 hover:underline cursor-pointer flex items-center gap-1"
+            title="Limpar todos os filtros"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Limpar filtros</span>
+          </button>
+        </div>
+      )}
 
       {/* Weekday Header */}
       <div className="grid grid-cols-7 bg-slate-100/90 border-b border-slate-200 text-center py-2 text-xs font-semibold text-slate-600">
