@@ -32,3 +32,6 @@ server/*.db*
 
 # Documentação local / notas
 detalhes.md
+
+# Scripts SQL de Produção (armazenamento local / backup)
+sql-prod/
